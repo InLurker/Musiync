@@ -111,6 +111,7 @@ dependencies {
     implementation(libs.squigglyslider)
 
     implementation(libs.room.runtime)
+    implementation(libs.gms.play.services.wearable)
     ksp(libs.room.compiler)
     implementation(libs.room.ktx)
 

@@ -104,6 +104,8 @@ import com.metrolist.music.utils.enumPreference
 import com.metrolist.music.utils.get
 import com.metrolist.music.utils.isInternetAvailable
 import com.metrolist.music.utils.reportException
+import com.metrolist.music.wear.DataLayerHelper
+import com.metrolist.music.wear.MessageLayerHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -202,6 +204,15 @@ class MusicService :
 
     override fun onCreate() {
         super.onCreate()
+        val dataLayerHelper = DataLayerHelper(this)
+        val messageLayerHelper = MessageLayerHelper(this)
+        messageLayerHelper.startListeningForCommands { command ->
+            when (command) {
+                "PLAY/PAUSE" -> if (player.isPlaying) player.pause() else player.play()
+                "NEXT" -> player.seekToNext()
+                "PREVIOUS" -> player.seekToPrevious()
+            }
+        }
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(
                 this,

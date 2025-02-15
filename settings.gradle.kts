@@ -1,4 +1,13 @@
 @file:Suppress("UnstableApiUsage")
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
@@ -21,6 +30,8 @@ include(":kugou")
 include(":lrclib")
 include(":kizzy")
 include(":material-color-utilities")
+include(":wear")
+
 
 // Use a local copy of NewPipe Extractor by uncommenting the lines below.
 // We assume, that OuterTune and NewPipe Extractor have the same parent directory.

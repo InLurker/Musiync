@@ -28,6 +28,7 @@ import com.metrolist.music.extensions.toInetSocketAddress
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
 import com.metrolist.music.utils.reportException
+import com.metrolist.music.wear.DataLayerHelper
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -39,9 +40,10 @@ import java.net.Proxy
 import java.util.Locale
 
 @HiltAndroidApp
-class App :
-    Application(),
-    ImageLoaderFactory {
+class App : Application(), ImageLoaderFactory {
+
+    private lateinit var dataLayerHelper: DataLayerHelper
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
