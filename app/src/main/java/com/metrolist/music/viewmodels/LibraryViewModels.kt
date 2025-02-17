@@ -311,6 +311,8 @@ constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     var playlists = database.playlists(PlaylistSortType.CREATE_DATE, true)
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    var songs = database.likedSongs(SongSortType.CREATE_DATE, true)
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
         viewModelScope.launch(Dispatchers.IO) {

@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             messageClientService = MessageClientService(this)
             DisplayScreen(trackInfo = CurrentTrackHolder.currentTrack) { command ->

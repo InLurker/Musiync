@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.ksp)
 }
 
 android {
@@ -75,4 +77,8 @@ dependencies {
     debugImplementation(libs.ui.test.manifest)
     debugImplementation(libs.androidx.tiles.tooling)
     implementation(libs.coil)
+    implementation(libs.hilt.navigation)
+    implementation(libs.hilt)
+
+    ksp(libs.hilt.compiler)
 }

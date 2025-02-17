@@ -18,7 +18,6 @@ import com.metrolist.music.extensions.metadata
 import com.metrolist.music.playback.MusicService.MusicBinder
 import com.metrolist.music.playback.queues.Queue
 import com.metrolist.music.utils.reportException
-import com.metrolist.music.wear.DataLayerHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -139,12 +138,6 @@ class PlayerConnection(
         currentMediaItemIndex.value = player.currentMediaItemIndex
         currentWindowIndex.value = player.getCurrentQueueIndex()
         updateCanSkipPreviousAndNext()
-
-        mediaItem?.let { media ->
-            // Send track info through DataLayerHelper
-            val dataLayerHelper = DataLayerHelper(service.applicationContext)
-            dataLayerHelper.sendMediaInfo(media)
-        }
     }
 
     override fun onTimelineChanged(

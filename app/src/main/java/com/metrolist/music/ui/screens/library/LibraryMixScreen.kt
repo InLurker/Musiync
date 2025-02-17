@@ -53,21 +53,31 @@ import com.metrolist.music.db.entities.Album
 import com.metrolist.music.db.entities.Artist
 import com.metrolist.music.db.entities.Playlist
 import com.metrolist.music.db.entities.PlaylistEntity
+import com.metrolist.music.db.entities.Song
 import com.metrolist.music.extensions.reversed
+import com.metrolist.music.extensions.togglePlayPause
+import com.metrolist.music.models.toMediaMetadata
+import com.metrolist.music.playback.queues.LocalAlbumRadio
+import com.metrolist.music.playback.queues.YouTubeQueue
 import com.metrolist.music.ui.component.AlbumGridItem
 import com.metrolist.music.ui.component.AlbumListItem
 import com.metrolist.music.ui.component.ArtistGridItem
 import com.metrolist.music.ui.component.ArtistListItem
 import com.metrolist.music.ui.component.LocalMenuState
+import com.metrolist.music.ui.component.LocalSongsGrid
 import com.metrolist.music.ui.component.PlaylistGridItem
 import com.metrolist.music.ui.component.PlaylistListItem
+import com.metrolist.music.ui.component.SongGridItem
+import com.metrolist.music.ui.component.SongListItem
 import com.metrolist.music.ui.component.SortHeader
 import com.metrolist.music.ui.menu.AlbumMenu
 import com.metrolist.music.ui.menu.ArtistMenu
 import com.metrolist.music.ui.menu.PlaylistMenu
+import com.metrolist.music.ui.menu.SongMenu
 import com.metrolist.music.utils.rememberEnumPreference
 import com.metrolist.music.utils.rememberPreference
 import com.metrolist.music.viewmodels.LibraryMixViewModel
+import kotlinx.coroutines.launch
 import java.text.Collator
 import java.time.LocalDateTime
 import java.util.Locale
@@ -128,8 +138,9 @@ fun LibraryMixScreen(
     val albums = viewModel.albums.collectAsState()
     val artist = viewModel.artists.collectAsState()
     val playlist = viewModel.playlists.collectAsState()
+    val songs = viewModel.songs.collectAsState()
 
-    var allItems = albums.value + artist.value + playlist.value
+    var allItems = albums.value + artist.value + playlist.value + songs.value
     val collator = Collator.getInstance(Locale.getDefault())
     collator.strength = Collator.PRIMARY
     allItems =
@@ -137,6 +148,7 @@ fun LibraryMixScreen(
             MixSortType.CREATE_DATE ->
                 allItems.sortedBy { item ->
                     when (item) {
+                        is Song -> item.song.likedDate
                         is Album -> item.album.bookmarkedAt
                         is Artist -> item.artist.bookmarkedAt
                         is Playlist -> item.playlist.createdAt
@@ -148,6 +160,7 @@ fun LibraryMixScreen(
                 allItems.sortedWith(
                     compareBy(collator) { item ->
                         when (item) {
+                            is Song -> item.song.title
                             is Album -> item.album.title
                             is Artist -> item.artist.name
                             is Playlist -> item.playlist.name
@@ -159,6 +172,7 @@ fun LibraryMixScreen(
             MixSortType.LAST_UPDATED ->
                 allItems.sortedBy { item ->
                     when (item) {
+                        is Song -> item.song.dateModified
                         is Album -> item.album.lastUpdateTime
                         is Artist -> item.artist.lastUpdateTime
                         is Playlist -> item.playlist.lastUpdateTime
@@ -436,7 +450,55 @@ fun LibraryMixScreen(
                                 )
                             }
 
-                            else -> {}
+                            is Song -> {
+                                SongListItem(
+                                    song = item,
+                                    isActive = item.id == mediaMetadata?.id,
+                                    isPlaying = isPlaying,
+                                    trailingContent = {
+                                        IconButton(
+                                            onClick = {
+                                                menuState.show {
+                                                    SongMenu(
+                                                        originalSong = item,
+                                                        navController = navController,
+                                                        onDismiss = menuState::dismiss,
+                                                    )
+                                                }
+                                            },
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.more_vert),
+                                                contentDescription = null,
+                                            )
+                                        }
+                                    },
+                                    modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .combinedClickable(
+                                            onClick = {
+                                                if (item.id == mediaMetadata?.id) {
+                                                    playerConnection.player.togglePlayPause()
+                                                } else {
+                                                    playerConnection.playQueue(
+                                                        YouTubeQueue.radio(item.toMediaMetadata()),
+                                                    )
+                                                }
+                                            },
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                menuState.show {
+                                                    SongMenu(
+                                                        originalSong = item,
+                                                        navController = navController,
+                                                        onDismiss = menuState::dismiss,
+                                                    )
+                                                }
+                                            },
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
@@ -603,6 +665,42 @@ fun LibraryMixScreen(
                                                 menuState.show {
                                                     AlbumMenu(
                                                         originalAlbum = item,
+                                                        navController = navController,
+                                                        onDismiss = menuState::dismiss,
+                                                    )
+                                                }
+                                            },
+                                        )
+                                        .animateItem(),
+                                )
+                            }
+
+                            is Song -> {
+                                SongGridItem(
+                                    song = item,
+                                    isActive = item.id == mediaMetadata?.id,
+                                    isPlaying = isPlaying,
+                                    fillMaxWidth = true,
+                                    modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .combinedClickable(
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    if (item.id == mediaMetadata?.id) {
+                                                        playerConnection.player.togglePlayPause()
+                                                    } else {
+                                                        playerConnection.playQueue(
+                                                            YouTubeQueue.radio(item.toMediaMetadata()),
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                menuState.show {
+                                                    SongMenu(
+                                                        originalSong = item,
                                                         navController = navController,
                                                         onDismiss = menuState::dismiss,
                                                     )

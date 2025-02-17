@@ -1,6 +1,6 @@
 package com.metrolist.music.presentation.wear
 
-import android.app.Activity
+import android.content.Context
 import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.MessageClient
@@ -9,10 +9,13 @@ import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class MessageClientService(private val activity: Activity): MessageClient.OnMessageReceivedListener {
+@Singleton
+class MessageClientService @Inject constructor(private val context: Context): MessageClient.OnMessageReceivedListener {
 
-    val messageClient by lazy { Wearable.getMessageClient(activity) }
+    val messageClient by lazy { Wearable.getMessageClient(context) }
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
@@ -26,7 +29,7 @@ class MessageClientService(private val activity: Activity): MessageClient.OnMess
     fun sendPlaybackCommand(command: String) {
         // cannot be run on main app thread
         scope.launch {
-            val nodes = Tasks.await(Wearable.getNodeClient(activity).connectedNodes)
+            val nodes = Tasks.await(Wearable.getNodeClient(context).connectedNodes)
             nodes.forEach { node ->
                 messageClient.sendMessage(node.id, "/music_command", command.toByteArray())
                 Log.d("WearOS", "Sent command: $command to node ${node.id}")

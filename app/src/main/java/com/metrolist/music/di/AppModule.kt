@@ -11,6 +11,8 @@ import com.metrolist.music.db.InternalDatabase
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
+import com.metrolist.music.wear.DataLayerHelper
+import com.metrolist.music.wear.MessageLayerHelper
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -75,5 +77,17 @@ object AppModule {
         }
         constructor().release()
         return constructor()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDataLayerHelper(@ApplicationContext context: Context): DataLayerHelper {
+        return DataLayerHelper(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideMessageLayerHelper(@ApplicationContext context: Context): MessageLayerHelper {
+        return MessageLayerHelper(context)
     }
 }

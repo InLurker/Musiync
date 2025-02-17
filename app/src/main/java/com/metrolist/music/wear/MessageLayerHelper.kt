@@ -5,15 +5,19 @@ import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageClient.OnMessageReceivedListener
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
+import com.metrolist.music.wear.enumerated.WearCommandEnum
 import timber.log.Timber
 import java.util.concurrent.atomic.AtomicReference
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class MessageLayerHelper(private val context: Context) : OnMessageReceivedListener {
+@Singleton
+class MessageLayerHelper @Inject constructor(context: Context) : OnMessageReceivedListener {
 
     private val messageClient: MessageClient = Wearable.getMessageClient(context)
-    private val commandListener = AtomicReference<(String) -> Unit>()
+    private val commandListener = AtomicReference<(WearCommandEnum) -> Unit>()
 
-    fun startListeningForCommands(listener: (String) -> Unit) {
+    fun startListeningForCommands(listener: (WearCommandEnum) -> Unit) {
         commandListener.set(listener)
         messageClient.addListener(this)
         Timber.tag("DataLayerHelper").d("Listening for Wear OS commands")
@@ -22,29 +26,20 @@ class MessageLayerHelper(private val context: Context) : OnMessageReceivedListen
     override fun onMessageReceived(messageEvent: MessageEvent) {
         Timber.tag("MessageLayerHelper").d("Received message with path: ${messageEvent.path}")
         if (messageEvent.path == "/music_command") {
-            val command = String(messageEvent.data)
-            Timber.tag("DataLayerHelper").d("Received command: $command")
-            handleMusicCommand(command)
+            val message = String(messageEvent.data)
+            try {
+                val command = WearCommandEnum.valueOf(message)
+                Timber.tag("DataLayerHelper").d("Received command: ${command.name}")
+                handleMusicCommand(command)
+            } catch (e: IllegalArgumentException) {
+                Timber.tag("MessageLayerHelper").e("Invalid command received: ${message}")
+            }
         }
     }
 
-    private fun handleMusicCommand(command: String) {
-        when (command) {
-            "PLAY/PAUSE" -> {
-                Timber.tag("MessageLayerHelper").d("Executing PLAY/PAUSE command")
-                commandListener.get()?.invoke("PLAY/PAUSE")
-            }
-            "NEXT" -> {
-                Timber.tag("MessageLayerHelper").d("Executing NEXT command")
-                commandListener.get()?.invoke("NEXT")
-            }
-            "PREVIOUS" -> {
-                Timber.tag("MessageLayerHelper").d("Executing PREVIOUS command")
-                commandListener.get()?.invoke("PREVIOUS")
-            }
-            else -> {
-                Timber.tag("MessageLayerHelper").w("Received unknown command: $command")
-            }
-        }
+    private fun handleMusicCommand(command: WearCommandEnum) {
+        Timber.tag("MessageLayerHelper").d("Executing PLAY_PAUSE command")
+        commandListener.get()?.invoke(command)
     }
 }
+
