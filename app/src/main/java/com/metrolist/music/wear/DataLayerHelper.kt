@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import androidx.media3.common.MediaItem
 import coil.Coil
 import coil.annotation.ExperimentalCoilApi
+import coil.imageLoader
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.PutDataMapRequest
@@ -39,7 +40,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
     @Inject
     lateinit var database: MusicDatabase
 
-    private val coil = Coil.imageLoader(context)
+    private val coil = context.imageLoader
 
     fun sendSongInfo(song: Song) {
         scope.launch {
