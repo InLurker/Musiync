@@ -1,6 +1,7 @@
 package com.metrolist.music
 
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import android.widget.Toast.LENGTH_SHORT
@@ -41,9 +42,15 @@ import java.util.Locale
 @HiltAndroidApp
 class App : Application(), ImageLoaderFactory {
 
+    companion object {
+        lateinit var appContext: Context
+            private set
+    }
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
+        appContext = applicationContext
         Timber.plant(Timber.DebugTree())
 
         val locale = Locale.getDefault()
