@@ -48,6 +48,7 @@ import com.metrolist.music.constants.PlayerHorizontalPadding
 import com.metrolist.music.constants.ShowLyricsKey
 import com.metrolist.music.constants.SwipeThumbnailKey
 import com.metrolist.music.constants.ThumbnailCornerRadius
+import com.metrolist.music.ui.component.AlbumArt
 import com.metrolist.music.ui.component.Lyrics
 import com.metrolist.music.utils.rememberPreference
 import kotlinx.coroutines.delay
@@ -158,65 +159,42 @@ fun Thumbnail(
                         )
                     },
             ) {
-                Box(
+                AlbumArt(
+                    artworkUrl = mediaMetadata?.thumbnailUrl,
                     modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = { offset ->
+                                    val currentPosition =
+                                        playerConnection.player.currentPosition
+                                    if ((layoutDirection == LayoutDirection.Ltr && offset.x < size.width / 2) ||
+                                        (layoutDirection == LayoutDirection.Rtl && offset.x > size.width / 2)
+                                    ) {
+                                        playerConnection.player.seekTo(
+                                            (currentPosition - 5000).coerceAtLeast(
+                                                0
+                                            )
+                                        )
+                                        seekDirection =
+                                            context.getString(R.string.seek_backward)
+                                    } else {
+                                        playerConnection.player.seekTo(
+                                            (currentPosition + 5000).coerceAtMost(
+                                                playerConnection.player.duration
+                                            )
+                                        )
+                                        seekDirection = context.getString(R.string.seek_forward)
+                                    }
+                                    showSeekEffect = true
+                                }
+                            )
+                        }
                         .offset { IntOffset(offsetX.roundToInt(), 0) }
                         .fillMaxWidth()
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(ThumbnailCornerRadius * 2))
-                ) {
-                    // Blurred background layer
-                    AsyncImage(
-                        model = mediaMetadata?.thumbnailUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillBounds,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(
-                                renderEffect = BlurEffect(
-                                    radiusX = 75f,
-                                    radiusY = 75f
-                                ),
-                                alpha = 0.5f
-                            )
-                    )
-
-                    // Main thumbnail image
-                    AsyncImage(
-                        model = mediaMetadata?.thumbnailUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onDoubleTap = { offset ->
-                                        val currentPosition =
-                                            playerConnection.player.currentPosition
-                                        if ((layoutDirection == LayoutDirection.Ltr && offset.x < size.width / 2) ||
-                                            (layoutDirection == LayoutDirection.Rtl && offset.x > size.width / 2)
-                                        ) {
-                                            playerConnection.player.seekTo(
-                                                (currentPosition - 5000).coerceAtLeast(
-                                                    0
-                                                )
-                                            )
-                                            seekDirection =
-                                                context.getString(R.string.seek_backward)
-                                        } else {
-                                            playerConnection.player.seekTo(
-                                                (currentPosition + 5000).coerceAtMost(
-                                                    playerConnection.player.duration
-                                                )
-                                            )
-                                            seekDirection = context.getString(R.string.seek_forward)
-                                        }
-                                        showSeekEffect = true
-                                    }
-                                )
-                            }
-                    )
-                }
+                )
 
                 LaunchedEffect(showSeekEffect) {
                     if (showSeekEffect) {
@@ -256,28 +234,9 @@ fun Thumbnail(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(ThumbnailCornerRadius * 2))
                     ) {
-                        // Blurred background for preview image
-                        AsyncImage(
-                            model = it,
-                            contentDescription = null,
-                            contentScale = ContentScale.FillBounds,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer(
-                                    renderEffect = BlurEffect(
-                                        radiusX = 75f,
-                                        radiusY = 75f
-                                    ),
-                                    alpha = 0.5f
-                                )
-                        )
 
-                        // Preview image
-                        AsyncImage(
-                            model = it,
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize()
+                        AlbumArt(
+                            artworkUrl = it
                         )
                     }
                 }

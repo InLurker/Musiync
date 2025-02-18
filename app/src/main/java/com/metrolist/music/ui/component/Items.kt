@@ -39,11 +39,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +73,7 @@ import androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING
 import androidx.media3.exoplayer.offline.Download.STATE_QUEUED
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.models.AlbumItem
@@ -99,6 +102,7 @@ import com.metrolist.music.utils.makeTimeString
 import com.metrolist.music.utils.reportException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -420,13 +424,9 @@ fun SongListItem(
                         )
                     }
                 }
-                AsyncImage(
-                    model = song.song.thumbnailUrl,
-                    contentDescription = null,
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(ThumbnailCornerRadius)),
+                AlbumArt(
+                    artworkUrl = song.song.thumbnailUrl,
+                    modifier = Modifier.clip(RoundedCornerShape(ThumbnailCornerRadius)),
                 )
             }
 
@@ -517,13 +517,10 @@ fun SongGridItem(
     ),
     badges = badges,
     thumbnailContent = {
-        AsyncImage(
-            model = song.song.thumbnailUrl,
-            contentDescription = null,
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(ThumbnailCornerRadius)),
+
+        AlbumArt(
+            artworkUrl = song.song.thumbnailUrl,
+            modifier = Modifier.clip(RoundedCornerShape(ThumbnailCornerRadius))
         )
 
         AnimatedVisibility(
@@ -1100,28 +1097,9 @@ fun SongGridItem(
     ),
     badges = badges,
     thumbnailContent = {
-        // background blur
-        AsyncImage(
-            model = song.song.thumbnailUrl,
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    renderEffect = BlurEffect(
-                        radiusX = 75f,
-                        radiusY = 75f
-                    ),
-                    alpha = 0.5f
-                )
-        )
-
-        AsyncImage(
-            model = song.song.thumbnailUrl,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(ThumbnailCornerRadius)),
+        AlbumArt(
+            artworkUrl = song.song.thumbnailUrl,
+            modifier = Modifier.clip(RoundedCornerShape(ThumbnailCornerRadius)),
         )
 
         AnimatedVisibility(

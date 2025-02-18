@@ -6,6 +6,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +26,7 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -27,6 +34,7 @@ import coil.size.Dimension
 import coil.size.Size
 import com.metrolist.music.models.TrackInfo
 import com.metrolist.music.presentation.theme.MetrolistTheme
+import kotlinx.coroutines.flow.filterIsInstance
 
 @Composable
 fun DisplayScreen(
@@ -44,6 +52,19 @@ fun DisplayScreen(
                 .fillMaxHeight()
                 .background(MaterialTheme.colors.background)
         ) {
+
+            val painter = rememberAsyncImagePainter(model = albumArt)
+            var isSquare by remember { mutableStateOf(false) }
+
+            LaunchedEffect(painter) {
+                snapshotFlow { painter.state }
+                    .filterIsInstance<AsyncImagePainter.State.Success>()
+                    .collect { state ->
+                        isSquare = state.painter.intrinsicSize.width == state.painter.intrinsicSize.height
+                    }
+            }
+
+
             AsyncImage(
                 model = albumArt,
                 contentDescription = null,
