@@ -99,7 +99,7 @@ fun DisplayScreen(
     }
 }
 
-@Preview
+@Preview(device = "id:wearos_small_round")
 @Composable
 fun DefaultPreview() {
     DisplayScreen(
