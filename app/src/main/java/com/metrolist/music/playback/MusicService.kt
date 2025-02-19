@@ -212,6 +212,7 @@ class MusicService :
 
     override fun onCreate() {
         super.onCreate()
+        dataLayerHelper.initializeMusicService(this)
         messageLayerHelper.startListeningForCommands { command ->
             when (command) {
                 WearCommandEnum.PLAY_PAUSE -> if (player.isPlaying) player.pause() else player.play()
@@ -219,7 +220,13 @@ class MusicService :
                 WearCommandEnum.PREVIOUS -> player.seekToPrevious()
                 WearCommandEnum.REQUEST_STATE -> {
                     currentSong.value?.let {
-                        dataLayerHelper.sendSongInfo(it)
+                        dataLayerHelper.sendMediaInfo(
+                            it.song.title,
+                            it.artists.joinToString { it.name },
+                            it.album?.title ?: "",
+                            it.thumbnailUrl ?: "",
+                            player.isPlaying
+                        )
                     }
                 }
             }
@@ -299,7 +306,6 @@ class MusicService :
             updateNotification()
             if (song != null) {
                 discordRpc?.updateSong(song)
-                dataLayerHelper.sendSongInfo(song)
             } else {
                 discordRpc?.closeRPC()
             }

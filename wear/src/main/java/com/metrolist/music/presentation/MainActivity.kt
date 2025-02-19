@@ -12,6 +12,7 @@ import com.metrolist.music.models.TrackInfo
 import com.metrolist.music.presentation.ui.screens.DisplayScreen
 import com.metrolist.music.presentation.wear.MessageClientService
 import com.metrolist.music.repository.CurrentTrackHolder
+import kotlinx.coroutines.flow.flowOf
 
 class MainActivity : ComponentActivity() {
 
@@ -44,7 +45,8 @@ fun DefaultPreview() {
             "Track Name",
             "Artist Name",
             "Album Name",
-            "https://i.ytimg.com/vi/8ZP5eqm4JqM/hq720.jpg"
+            "https://i.ytimg.com/vi/8ZP5eqm4JqM/hq720.jpg",
+            flowOf( null )
         )
     ) {
         // Do nothing

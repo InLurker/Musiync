@@ -3,19 +3,26 @@ package com.metrolist.music.wear
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.icu.text.CaseMap.Title
+import android.util.Size
 import androidx.media3.common.MediaItem
 import coil.Coil
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
+import coil.request.ImageRequest
+import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.metrolist.music.LocalDatabase
+import com.metrolist.music.LocalPlayerConnection
 import com.metrolist.music.constants.AlbumSortType
 import com.metrolist.music.constants.ArtistSortType
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.db.entities.Song
+import com.metrolist.music.playback.MusicService
+import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,26 +37,40 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@OptIn(ExperimentalCoilApi::class)
 @Singleton
 class DataLayerHelper @Inject constructor(context: Context) {
 
     private val dataClient: DataClient = Wearable.getDataClient(context)
     private val scope = CoroutineScope(Dispatchers.IO)
     private val commandListener = AtomicReference<(String) -> Unit>()
-
     @Inject
     lateinit var database: MusicDatabase
 
+    lateinit var musicService: MusicService
+
     private val coil = context.imageLoader
 
-    fun sendSongInfo(song: Song) {
+    fun initializeMusicService(musicService: MusicService) {
+        this.musicService = musicService
+    }
+
+    fun sendMediaInfo(
+        title: String,
+        artist: String,
+        album: String,
+        artworkUrl: String,
+        isPlaying: Boolean
+    ) {
         scope.launch {
             try {
                 val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.SONG_INFO.path).apply {
-                    dataMap.putString("trackName", song.title)
-                    dataMap.putString("artistName", song.artists.map { it.name }.joinToString(", "))
-                    dataMap.putString("albumName", song.album?.title ?: "")
-                    dataMap.putString("albumImage", song.thumbnailUrl ?: "")
+                    dataMap.putString("trackName", title)
+                    dataMap.putString("artistName", artist)
+                    dataMap.putString("albumName", album)
+                    dataMap.putString("artworkUrl", artworkUrl)
+                    dataMap.putAsset("artworkAsset", fetchBitmapByteFromCoil(artworkUrl, 450))
+                    dataMap.putBoolean("isPlaying", isPlaying)
                 }.asPutDataRequest()
 
                 // Send data through Data Layer
@@ -64,7 +85,6 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
     }
 
-    @OptIn(ExperimentalCoilApi::class)
     private fun sendLikedAlbums() {
         scope.launch {
             try {
@@ -83,17 +103,8 @@ class DataLayerHelper @Inject constructor(context: Context) {
                             putString("id", album.album.id)
                             putString("title", album.album.title)
                             putString("artist", album.artists.map { it.name }.joinToString(", "))
-                            putInt("year", album.album.year ?: 0)
-                            val albumArt = album.album.thumbnailUrl ?: ""
-                            // try to get the cache from coil
-                            coil.diskCache?.openSnapshot(albumArt)?.use { cache ->
-                                val imageFile = cache.data.toFile()
-                                val stream = ByteArrayOutputStream()
-                                val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
-                                val compressedBitmap = resizeBitmap(100, bitmap)
-                                compressedBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                                putByteArray("thumbnail", stream.toByteArray())
-                            } ?: putString("thumbnailUrl", album.album.thumbnailUrl ?: "")
+                            putString("artworkUrl", album.album.thumbnailUrl ?: "")
+                            putAsset("artworkBitmap", fetchBitmapByteFromCoil(album.album.thumbnailUrl, 100))
                             putInt("songCount", album.album.songCount)
                         }
                         albumDataMapList.add(albumDataMap)
@@ -169,6 +180,28 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 Timber.tag("DataLayerHelper").e(e, "Failed to send album details")
             }
         }
+    }
+
+
+
+    fun fetchBitmapByteFromCoil(url: String?, size: Int): Asset {
+        val bitmap = url?.let {
+            coil.diskCache?.openSnapshot(it)?.use {
+                val imageFile = it.data.toFile().readBytes()
+                if (imageFile.isEmpty()) {
+                    null
+                } else {
+                    resizeBitmap(
+                        size,
+                        BitmapFactory.decodeByteArray(imageFile, 0, imageFile.size)
+                    )
+                }
+            }
+        }
+
+        val stream = ByteArrayOutputStream()
+        bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+        return Asset.createFromBytes(stream.toByteArray())
     }
 }
 

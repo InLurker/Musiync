@@ -1,5 +1,6 @@
 package com.metrolist.music.presentation.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -7,7 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -20,6 +23,7 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.MaterialTheme
@@ -32,9 +36,11 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Dimension
 import coil.size.Size
+import com.metrolist.music.R
 import com.metrolist.music.models.TrackInfo
 import com.metrolist.music.presentation.theme.MetrolistTheme
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun DisplayScreen(
@@ -44,7 +50,9 @@ fun DisplayScreen(
     val context = LocalContext.current
     val targetHeightPx = 450
 
-    val albumArt = trackInfo?.albumImage
+    val albumArtFlow = trackInfo?.artworkBitmap
+    val albumArt by albumArtFlow?.collectAsState(initial = null) ?: remember { mutableStateOf(null) }
+
     MetrolistTheme {
         Box(
             contentAlignment = Alignment.Center,
@@ -53,16 +61,18 @@ fun DisplayScreen(
                 .background(MaterialTheme.colors.background)
         ) {
 
-            val painter = rememberAsyncImagePainter(model = albumArt)
-            var isSquare by remember { mutableStateOf(false) }
+            Log.d("DisplayScreen", "Album art: $albumArt")
 
-            LaunchedEffect(painter) {
-                snapshotFlow { painter.state }
-                    .filterIsInstance<AsyncImagePainter.State.Success>()
-                    .collect { state ->
-                        isSquare = state.painter.intrinsicSize.width == state.painter.intrinsicSize.height
-                    }
-            }
+//            val painter = rememberAsyncImagePainter(model = albumArt)
+//            var isSquare by remember { mutableStateOf(false) }
+//
+//            LaunchedEffect(painter) {
+//                snapshotFlow { painter.state }
+//                    .filterIsInstance<AsyncImagePainter.State.Success>()
+//                    .collect { state ->
+//                        isSquare = state.painter.intrinsicSize.width == state.painter.intrinsicSize.height
+//                    }
+//            }
 
 
             AsyncImage(
@@ -85,6 +95,7 @@ fun DisplayScreen(
                 model = albumArt,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
+                placeholder = painterResource(id = R.drawable.nade),
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(10.dp)),
@@ -107,7 +118,8 @@ fun DefaultPreview() {
             "Track Name",
             "Artist Name",
             "Album Name",
-            null
+            null,
+            flowOf(null)
         )
     ) {}
 }

@@ -138,6 +138,16 @@ class PlayerConnection(
         currentMediaItemIndex.value = player.currentMediaItemIndex
         currentWindowIndex.value = player.getCurrentQueueIndex()
         updateCanSkipPreviousAndNext()
+
+        if (mediaItem != null) {
+            service.dataLayerHelper.sendMediaInfo(
+                mediaItem.metadata?.title ?: "",
+                mediaItem.metadata?.artists?.joinToString { it.name } ?: "",
+                mediaItem.metadata?.album?.title ?: "",
+                mediaItem.metadata?.thumbnailUrl ?: "",
+                isPlaying.value
+            )
+        }
     }
 
     override fun onTimelineChanged(
