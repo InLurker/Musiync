@@ -12,19 +12,30 @@ import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.metrolist.music.common.enumerated.DataLayerPathEnum
-import com.metrolist.music.repository.CurrentTrackHolder
+import com.metrolist.music.presentation.data.MusicRepository
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 
-class DataClientService: WearableListenerService() {
+@AndroidEntryPoint
+class DataClientService : WearableListenerService() {
+    @Inject
+    lateinit var musicRepository: MusicRepository
 
-    lateinit var dataClient: DataClient
+    private lateinit var dataClient: DataClient
 
-    val scope = CoroutineScope(Dispatchers.IO)
+    private val serviceScope = CoroutineScope(Dispatchers.IO)
+
+    override fun onCreate() {
+        super.onCreate()
+        dataClient = Wearable.getDataClient(this)
+    }
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         for (event in dataEvents) {
             if (event.type == DataEvent.TYPE_CHANGED) {
@@ -45,6 +56,7 @@ class DataClientService: WearableListenerService() {
     }
 
     private fun processCurrentState(dataEvent: DataEvent) {
+        // Extract the data map immediately before the DataHolder is closed.
         val dataMap = DataMapItem.fromDataItem(dataEvent.dataItem).dataMap
         val trackName = dataMap.getString("trackName")
         val artistName = dataMap.getString("artistName")
@@ -53,7 +65,17 @@ class DataClientService: WearableListenerService() {
         val artworkAsset = dataMap.getAsset("artworkAsset")
 
         Log.d("WearDataListenerService", "Received track info: $trackName by $artistName")
-        CurrentTrackHolder.updateTrack(trackName, artistName, albumName, artworkUrl, loadBitmapAsFlow(artworkAsset))
+
+        // Now launch the coroutine and use the extracted values.
+        serviceScope.launch {
+            musicRepository.updateTrack(
+                trackName,
+                artistName,
+                albumName,
+                artworkUrl,
+                loadBitmapAsFlow(artworkAsset)
+            )
+        }
     }
 
 
@@ -64,7 +86,7 @@ class DataClientService: WearableListenerService() {
         }
         try {
             val assetFileDescriptor = withContext(Dispatchers.IO) {
-                Tasks.await(Wearable.getDataClient(applicationContext).getFdForAsset(asset))
+                Tasks.await(dataClient.getFdForAsset(asset))
             }
             val inputStream = assetFileDescriptor.inputStream
             val bitmap = BitmapFactory.decodeStream(inputStream)

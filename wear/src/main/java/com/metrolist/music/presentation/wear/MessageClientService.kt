@@ -6,6 +6,7 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
+import com.metrolist.music.common.enumerated.WearCommandEnum
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -13,9 +14,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MessageClientService @Inject constructor(private val context: Context): MessageClient.OnMessageReceivedListener {
+class MessageClientService @Inject constructor(context: Context): MessageClient.OnMessageReceivedListener {
 
     val messageClient by lazy { Wearable.getMessageClient(context) }
+    val nodeClient by lazy { Wearable.getNodeClient(context) }
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
@@ -26,12 +28,12 @@ class MessageClientService @Inject constructor(private val context: Context): Me
         Log.d("WearOS", "Received message with path: ${messageEvent.path}")
     }
 
-    fun sendPlaybackCommand(command: String) {
+    fun sendPlaybackCommand(command: WearCommandEnum) {
         // cannot be run on main app thread
         scope.launch {
-            val nodes = Tasks.await(Wearable.getNodeClient(context).connectedNodes)
+            val nodes = Tasks.await(nodeClient.connectedNodes)
             nodes.forEach { node ->
-                messageClient.sendMessage(node.id, "/music_command", command.toByteArray())
+                messageClient.sendMessage(node.id, "/music_command", command.name.toByteArray())
                 Log.d("WearOS", "Sent command: $command to node ${node.id}")
             }
         }

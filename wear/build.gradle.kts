@@ -71,6 +71,8 @@ dependencies {
     implementation(libs.horologist.compose.tools)
     implementation(libs.horologist.tiles)
     implementation(libs.androidx.watchface.complications.data.source.ktx)
+    implementation(libs.androidx.palette.ktx)
+    implementation(project(":material-color-utilities"))
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.compose.ui.tooling)
