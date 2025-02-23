@@ -87,7 +87,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideMessageLayerHelper(@ApplicationContext context: Context): MessageLayerHelper {
-        return MessageLayerHelper(context)
+    fun provideMessageLayerHelper(@ApplicationContext context: Context, dataLayerHelper: DataLayerHelper): MessageLayerHelper {
+        return MessageLayerHelper(context, dataLayerHelper)
     }
 }

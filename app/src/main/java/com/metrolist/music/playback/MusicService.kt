@@ -105,8 +105,6 @@ import com.metrolist.music.utils.get
 import com.metrolist.music.utils.isInternetAvailable
 import com.metrolist.music.utils.reportException
 import com.metrolist.music.wear.DataLayerHelper
-import com.metrolist.music.wear.MessageLayerHelper
-import com.metrolist.music.wear.enumerated.WearCommandEnum
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -130,7 +128,6 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import timber.log.Timber
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.net.ConnectException
@@ -159,9 +156,6 @@ class MusicService :
 
     @Inject
     lateinit var dataLayerHelper: DataLayerHelper
-
-    @Inject
-    lateinit var messageLayerHelper: MessageLayerHelper
 
     private var scope = CoroutineScope(Dispatchers.Main) + Job()
     private val binder = MusicBinder()
@@ -213,24 +207,6 @@ class MusicService :
     override fun onCreate() {
         super.onCreate()
         dataLayerHelper.initializeMusicService(this)
-        messageLayerHelper.startListeningForCommands { command ->
-            when (command) {
-                WearCommandEnum.PLAY_PAUSE -> if (player.isPlaying) player.pause() else player.play()
-                WearCommandEnum.NEXT -> player.seekToNext()
-                WearCommandEnum.PREVIOUS -> player.seekToPrevious()
-                WearCommandEnum.REQUEST_STATE -> {
-                    currentSong.value?.let {
-                        dataLayerHelper.sendMediaInfo(
-                            it.song.title,
-                            it.artists.joinToString { it.name },
-                            it.album?.title ?: "",
-                            it.thumbnailUrl ?: "",
-                            player.isPlaying
-                        )
-                    }
-                }
-            }
-        }
 
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(

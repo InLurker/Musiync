@@ -4,6 +4,23 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.ksp)
+    alias(libs.plugins.protobuf)
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.5"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                create("java") {
+                    option("lite")
+                }
+            }
+        }
+    }
+
 }
 
 android {
@@ -53,6 +70,7 @@ android {
     }
 }
 
+
 dependencies {
 
     implementation(libs.play.services.wearable)
@@ -73,6 +91,7 @@ dependencies {
     implementation(libs.androidx.watchface.complications.data.source.ktx)
     implementation(libs.androidx.palette.ktx)
     implementation(project(":material-color-utilities"))
+    implementation(libs.androidx.datastore.core.android)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.compose.ui.tooling)
@@ -81,6 +100,8 @@ dependencies {
     implementation(libs.coil)
     implementation(libs.hilt.navigation)
     implementation(libs.hilt)
+    implementation(libs.datastore)
+    implementation(libs.protobuf.javalite)
 
     ksp(libs.hilt.compiler)
 }

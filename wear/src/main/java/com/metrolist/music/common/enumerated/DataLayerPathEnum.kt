@@ -1,7 +1,8 @@
 package com.metrolist.music.common.enumerated
 
 enum class DataLayerPathEnum(val path: String) {
-    SONG_INFO("/song_info");
+    CURRENT_STATE("/current_state"),
+    QUEUE_RESPONSE("/queue_response"),;
 
     companion object {
         fun fromPath(path: String): DataLayerPathEnum? {

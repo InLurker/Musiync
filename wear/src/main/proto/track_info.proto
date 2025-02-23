@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+option java_package = "com.metrolist.music.datastore";
+option java_multiple_files = true;
+
+message TrackInfoProto {
+  string track_name = 1;
+  string artist_name = 2;
+  string album_name = 3;
+  string artwork_url = 4;
+  bytes artwork_image = 5;
+}

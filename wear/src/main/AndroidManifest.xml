@@ -48,7 +48,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
-                <data android:path="/song_info" android:scheme="wear" />
+                <data android:path="/state_info" android:scheme="wear" />
             </intent-filter>
         </service>
 

@@ -1,10 +1,7 @@
 package com.metrolist.music.presentation.wear
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Log
-import com.google.android.gms.tasks.Tasks
-import com.google.android.gms.wearable.Asset
+import androidx.compose.runtime.collectAsState
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
@@ -12,14 +9,13 @@ import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.metrolist.music.common.enumerated.DataLayerPathEnum
+import com.metrolist.music.common.models.MusicState
+import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.data.MusicRepository
+import com.metrolist.music.presentation.helper.loadBitmapAsFlow
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 
@@ -43,8 +39,11 @@ class DataClientService : WearableListenerService() {
                     Log.d("WearDataListenerService", "Received data item with path: $it")
                     val path = DataLayerPathEnum.fromPath(it)
                     when (path) {
-                        DataLayerPathEnum.SONG_INFO -> {
+                        DataLayerPathEnum.CURRENT_STATE -> {
                             processCurrentState(event)
+                        }
+                        DataLayerPathEnum.QUEUE_RESPONSE -> {
+                            processQueueResponse(event)
                         }
                         else -> {
                             Log.d("WearDataListenerService", "Unknown data item path: $it")
@@ -56,45 +55,46 @@ class DataClientService : WearableListenerService() {
     }
 
     private fun processCurrentState(dataEvent: DataEvent) {
-        // Extract the data map immediately before the DataHolder is closed.
         val dataMap = DataMapItem.fromDataItem(dataEvent.dataItem).dataMap
-        val trackName = dataMap.getString("trackName")
-        val artistName = dataMap.getString("artistName")
-        val albumName = dataMap.getString("albumName")
-        val artworkUrl = dataMap.getString("artworkUrl")
-        val artworkAsset = dataMap.getAsset("artworkAsset")
+        val musicState = MusicState(
+            dataMap.getInt("queueHash"),
+            dataMap.getInt("queueSize"),
+            dataMap.getInt("currentIndex"),
+            dataMap.getBoolean("isPlaying")
+        )
+        musicRepository.handleIncomingState(musicState)
+    }
 
-        Log.d("WearDataListenerService", "Received track info: $trackName by $artistName")
 
-        // Now launch the coroutine and use the extracted values.
-        serviceScope.launch {
-            musicRepository.updateTrack(
-                trackName,
-                artistName,
-                albumName,
-                artworkUrl,
-                loadBitmapAsFlow(artworkAsset)
+    //fun TrackInfo.toDataMap(): DataMap {
+    //    val dataMap = DataMap()
+    //    dataMap.putString("trackName", trackName ?: "")
+    //    dataMap.putString("artistName", artistName ?: "")
+    //    dataMap.putString("albumName", albumName ?: "")
+    //    dataMap.putString("artworkUrl", artworkUrl ?: "")
+    //    artworkBitmap?.let { dataMap.putAsset("artworkBitmap", it) }
+    //    return dataMap
+    //}
+
+    private fun processQueueResponse(dataEvent: DataEvent) {
+        val dataMap = DataMapItem.fromDataItem(dataEvent.dataItem).dataMap
+        val queueStart = dataMap.getInt("queueStart")
+        val queueEnd = dataMap.getInt("queueEnd")
+        val queue = mutableMapOf<Int, TrackInfo>()
+        for (i in queueStart until queueEnd) {
+            val trackDataMap = dataMap.getDataMap("track_$i")
+            queue.put(
+                i,
+                TrackInfo(
+                    trackDataMap?.getString("trackName"),
+                    trackDataMap?.getString("artistName"),
+                    trackDataMap?.getString("albumName"),
+                    trackDataMap?.getString("artworkUrl"),
+                    loadBitmapAsFlow(trackDataMap?.getAsset("artworkBitmap"), dataClient)
+                )
             )
         }
+        musicRepository.updateQueue(queue)
     }
 
-
-    fun loadBitmapAsFlow(asset: Asset?): Flow<Bitmap?> = flow {
-        if (asset == null) {
-            emit(null)
-            return@flow
-        }
-        try {
-            val assetFileDescriptor = withContext(Dispatchers.IO) {
-                Tasks.await(dataClient.getFdForAsset(asset))
-            }
-            val inputStream = assetFileDescriptor.inputStream
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            emit(bitmap)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emit(null)
-        }
-    }
 }

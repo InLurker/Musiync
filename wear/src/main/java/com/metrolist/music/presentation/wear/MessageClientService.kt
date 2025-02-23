@@ -6,10 +6,12 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
+import com.metrolist.music.common.enumerated.MessageClientPathEnum
 import com.metrolist.music.common.enumerated.WearCommandEnum
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,28 +20,40 @@ class MessageClientService @Inject constructor(context: Context): MessageClient.
 
     val messageClient by lazy { Wearable.getMessageClient(context) }
     val nodeClient by lazy { Wearable.getNodeClient(context) }
-    private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
         messageClient.addListener(this)
     }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
-        Log.d("WearOS", "Received message with path: ${messageEvent.path}")
+        Log.d("Metrolist Mobile", "Received message with path: ${messageEvent.path}")
     }
 
     fun sendPlaybackCommand(command: WearCommandEnum) {
-        // cannot be run on main app thread
-        scope.launch {
-            val nodes = Tasks.await(nodeClient.connectedNodes)
-            nodes.forEach { node ->
-                messageClient.sendMessage(node.id, "/music_command", command.name.toByteArray())
-                Log.d("WearOS", "Sent command: $command to node ${node.id}")
-            }
-        }
+        sendMessage(MessageClientPathEnum.PLAYBACK_COMMAND.path, command.name.toByteArray())
     }
 
-    fun destroy() {
-        messageClient.removeListener(this)
+    fun sendQueueRangeRequest(start: Int, end: Int) {
+        sendMessage(MessageClientPathEnum.REQUEST_QUEUE.path, "$start,$end".toByteArray())
+    }
+
+    fun sendCurrentStateRequest() {
+        sendMessage(MessageClientPathEnum.REQUEST_STATE.path, null)
+    }
+
+    fun sendMessage(path: String, payload: ByteArray?) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) {
+                    Tasks.await(nodeClient.connectedNodes)
+                }
+                nodes.forEach { node ->
+                    messageClient.sendMessage(node.id, path, payload)
+                    Log.d("MessageSender", "Sent message to node ${node.id} with path: $path with payload: ${payload?.toString(Charsets.UTF_8)}")
+                }
+            } catch (e: Exception) {
+                Log.e("MessageSender", "Failed to send message", e)
+            }
+        }
     }
 }

@@ -16,14 +16,3 @@ fun MetrolistTheme(
     )
 }
 
-fun Bitmap.extractThemeColor(): Color {
-    val colorsToPopulation =
-        Palette
-            .from(this)
-            .maximumColorCount(8)
-            .generate()
-            .swatches
-            .associate { it.rgb to it.population }
-    val rankedColors = Score.score(colorsToPopulation)
-    return Color(rankedColors.first())
-}

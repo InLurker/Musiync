@@ -32,6 +32,10 @@ espressoCore = "3.5.1"
 appcompat = "1.6.1"
 material = "1.10.0"
 paletteKtx = "1.0.0"
+datastoreCoreAndroid = "1.1.2"
+datastore = "1.1.2"
+protobuf = "0.9.4"
+protobuf-javalite = "3.25.5"
 
 [libraries]
 annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
@@ -123,8 +127,12 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-palette-ktx = { group = "androidx.palette", name = "palette-ktx", version.ref = "paletteKtx" }
+androidx-datastore-core-android = { group = "androidx.datastore", name = "datastore-core-android", version.ref = "datastoreCoreAndroid" }
+protobuf-javalite = { group = "com.google.protobuf", name = "protobuf-javalite", version.ref = "protobuf-javalite" }
 
 [plugins]
+datastore = { id = "androidx.datastore:datastore", version.ref = "datastore" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

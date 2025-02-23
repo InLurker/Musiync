@@ -2,7 +2,8 @@ package com.metrolist.music.wear.enumerated
 
 
 enum class DataLayerPathEnum(val path: String) {
-    SONG_INFO("/song_info"),
+    CURRENT_STATE("/current_state"),
+    QUEUE_RESPONSE("/queue_response"),
     ALBUM_INFO("/album_info"),
     PLAYLIST_INFO("/playlist_info");
 

@@ -154,6 +154,8 @@ import com.metrolist.music.utils.get
 import com.metrolist.music.utils.rememberEnumPreference
 import com.metrolist.music.utils.rememberPreference
 import com.metrolist.music.utils.reportException
+import com.metrolist.music.wear.DataLayerHelper
+import com.metrolist.music.wear.MessageLayerHelper
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -181,6 +183,12 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var syncUtils: SyncUtils
 
+    @Inject
+    lateinit var messageLayerHelper: MessageLayerHelper
+
+    @Inject
+    lateinit var dataLayerHelper: DataLayerHelper
+
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
     private val serviceConnection =
         object : ServiceConnection {
@@ -191,6 +199,8 @@ class MainActivity : ComponentActivity() {
                 if (service is MusicBinder) {
                     playerConnection =
                         PlayerConnection(this@MainActivity, service, database, lifecycleScope)
+                    messageLayerHelper.playerConnection = playerConnection
+                    dataLayerHelper.playerConnection = playerConnection
                 }
             }
 
