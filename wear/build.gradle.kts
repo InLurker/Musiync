@@ -92,6 +92,8 @@ dependencies {
     implementation(libs.androidx.palette.ktx)
     implementation(project(":material-color-utilities"))
     implementation(libs.androidx.datastore.core.android)
+    implementation(libs.androidx.material3.android)
+    implementation(libs.androidx.compose.material3)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.compose.ui.tooling)

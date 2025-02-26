@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageClient.OnMessageReceivedListener
 import com.google.android.gms.wearable.MessageEvent
@@ -40,18 +41,29 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                     Timber.tag("MessageLayerHelper").d("Received request for queue")
                     val (start, end) = String(messageEvent.data).split(",").map { it.toInt() }
                     dataLayerHelper.handleQueueRangeRequest(start, end) { queue ->
-                        if (queue.isEmpty()) {
+                        if (queue == null || queue.trackList.isEmpty()) {
                             Timber.tag("MessageLayerHelper").d("Queue is empty")
                             return@handleQueueRangeRequest
                         }
+                        // Create a main DataMap request.
                         val request = PutDataMapRequest.create(DataLayerPathEnum.QUEUE_RESPONSE.path)
                         val dataMap = request.dataMap
-                        val keys = queue.keys
-                        dataMap.putInt("queueStart", keys.first())
-                        dataMap.putInt("queueEnd", keys.last() + 1)
-                        queue.forEach { (index, trackInfo) ->
-                            dataMap.putDataMap("track_$index", trackInfo.toDataMap())
+                        dataMap.putInt("queueHash", queue.queueHash)
+
+                        // Build a nested DataMap for the track list.
+                        val tracksDataMap = DataMap()
+                        queue.trackList.forEach { (index, trackInfo) ->
+                            tracksDataMap.putDataMap(index.toString(), trackInfo.toDataMap())
                         }
+                        dataMap.putDataMap("trackList", tracksDataMap)
+
+                        // Build a nested DataMap for the artwork assets.
+                        val artworkDataMap = DataMap()
+                        queue.artworkAssets.forEach { (artworkUri, asset) ->
+                            artworkDataMap.putAsset(artworkUri, asset)
+                        }
+                        dataMap.putDataMap("artworkAssets", artworkDataMap)
+
                         dataLayerHelper.sendDataMap(request)
                     }
                 }

@@ -11,14 +11,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 
 
 @Composable
 fun MarqueeText(
     text: String,
-    fontColor: Color = MaterialTheme.colors.onSurface,
+    fontColor: Color = MaterialTheme.colorScheme.onSurface,
     fontSize: TextUnit,
     modifier: Modifier = Modifier,
     fontWeight: FontWeight = FontWeight.Normal
@@ -40,19 +40,3 @@ fun MarqueeText(
         )
     }
 }
-
-//            AnimatedContent(
-//                targetState = mediaMetadata.title,
-//                transitionSpec = { fadeIn() togetherWith fadeOut() },
-//                label = "",
-//            ) { title ->
-//                Text(
-//                    text = title,
-//                    color = MaterialTheme.colorScheme.onSurface,
-//                    fontSize = 16.sp,
-//                    fontWeight = FontWeight.Bold,
-//                    maxLines = 1,
-//                    overflow = TextOverflow.Ellipsis,
-//                    modifier = Modifier.basicMarquee(),
-//                )
-//            }

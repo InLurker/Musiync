@@ -10,12 +10,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.CompactButton
 import androidx.wear.compose.material.Icon
+import androidx.wear.compose.material3.MaterialTheme
 import com.metrolist.music.R
 import com.metrolist.music.common.enumerated.WearCommandEnum
 
 @Composable
 fun PlaybackControl(
-    accentColor: Color,
+    accentColor: Color?,
     isPlaying: Boolean,
     onCommand: (WearCommandEnum) -> Unit,
     modifier: Modifier = Modifier,
@@ -36,7 +37,7 @@ fun PlaybackControl(
         }
         CompactButton(
             onClick = { onCommand(WearCommandEnum.PLAY_PAUSE) },
-            colors = ButtonDefaults.buttonColors(backgroundColor = accentColor)
+            colors = ButtonDefaults.buttonColors(backgroundColor = accentColor ?: MaterialTheme.colorScheme.primary)
         ) {
             Icon(
                 painter = painterResource(id = if (isPlaying) R.drawable.pause else R.drawable.play),

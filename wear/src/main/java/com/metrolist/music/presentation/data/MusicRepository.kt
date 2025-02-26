@@ -1,15 +1,17 @@
 package com.metrolist.music.presentation.data
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.MutableLiveData
 import com.metrolist.music.common.models.MusicState
 import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.wear.MessageClientService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -22,11 +24,13 @@ import kotlin.math.min
 class MusicRepository @Inject constructor(
     private val messageClientService: MessageClientService
 ) {
-    val queue = MutableLiveData<MutableMap<Int, TrackInfo>>(mutableMapOf())
+    val queue = MutableStateFlow<MutableMap<Int, TrackInfo>>(mutableMapOf())
 
-    val musicState = MutableLiveData<MusicState>()
+    val artworks = MutableStateFlow<MutableMap<String, Flow<Bitmap?>>>(mutableMapOf())
 
-    val accentColor = MutableLiveData<Color>()
+    val musicState = MutableStateFlow<MusicState?>(null)
+
+    val accentColor = MutableStateFlow<Color?>(null)
 
     private var queueRequested: Boolean = false
     private val queueAvailable = MutableSharedFlow<Unit>(replay = 1)
@@ -37,7 +41,7 @@ class MusicRepository @Inject constructor(
 
 
     fun setAccentColor(color: Color) {
-        accentColor.postValue(color)
+        accentColor.value = color
     }
 
     fun handleIncomingState(state: MusicState) {
@@ -86,15 +90,26 @@ class MusicRepository @Inject constructor(
         } ?: true
     }
 
-    fun updateQueue(delta: Map<Int, TrackInfo>) {
-        queue.value?.putAll(delta)
+    fun updateQueue(hash: Int, trackDelta: Map<Int, TrackInfo>?, artworkDelta: Map<String, Flow<Bitmap?>>?) {
+        if (hash != musicState.value?.queueHash) {
+            Log.d("MusicRepository", "Received new queue with hash: $hash")
+            queue.value.clear()
+            artworks.value.clear()
+        }
+        queue.value = queue.value.toMutableMap().apply {
+            trackDelta?.let { putAll(it) }
+        }
+        artworks.value = artworks.value.toMutableMap().apply {
+            artworkDelta?.let { putAll(it) }
+        }
+
         scope.launch {
             queueUpdateSignal.emit(Unit)
         }
     }
 
     private fun updateState(state: MusicState) {
-        musicState.postValue(state)
+        musicState.value = state
     }
 
 }

@@ -1,5 +1,6 @@
 package com.metrolist.music.presentation.helper
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
@@ -7,21 +8,15 @@ import androidx.palette.graphics.Palette
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
-import com.google.material.color.score.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flowOn
 
-fun loadBitmapAsFlow(asset: Asset?, dataClient: DataClient): Flow<Bitmap?> = flow {
-    if (asset == null) {
-        emit(null)
-        return@flow
-    }
+@SuppressLint("VisibleForTests")
+fun Asset.toBitmapFlow(dataClient: DataClient): Flow<Bitmap?> = flow {
     try {
-        val assetFileDescriptor = withContext(Dispatchers.IO) {
-            Tasks.await(dataClient.getFdForAsset(asset))
-        }
+        val assetFileDescriptor = Tasks.await(dataClient.getFdForAsset(this@toBitmapFlow))
         val inputStream = assetFileDescriptor.inputStream
         val bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
@@ -30,17 +25,15 @@ fun loadBitmapAsFlow(asset: Asset?, dataClient: DataClient): Flow<Bitmap?> = flo
         e.printStackTrace()
         emit(null)
     }
-}
+}.flowOn(Dispatchers.IO)
 
 
-fun Bitmap.extractThemeColor(): Color {
-    val colorsToPopulation =
-        Palette
-            .from(this)
-            .maximumColorCount(16)
-            .generate()
-            .swatches
-            .associate { it.rgb to it.population }
-    val rankedColors = Score.score(colorsToPopulation)
-    return Color(rankedColors.first())
+fun Bitmap.extractThemeColor(): Color? {
+    return Palette
+        .from(this)
+        .maximumColorCount(16)
+        .generate()
+        .dominantSwatch
+        ?.rgb
+        ?.let { Color(it) }
 }

@@ -7,15 +7,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.wear.compose.material.MaterialTheme
 import com.metrolist.music.common.models.TrackInfo
 
 @Composable
 fun DisplayTrackInfo(
     trackInfo: TrackInfo,
+    accentColor: Color,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -24,23 +25,23 @@ fun DisplayTrackInfo(
             .fillMaxWidth()
     ) {
         MarqueeText(
-            text = trackInfo.trackName ?: "Unknown Track",
+            text = trackInfo.trackName,
             fontSize = 14.sp,
-            fontColor = MaterialTheme.colors.onSurface,
+            fontColor = accentColor,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         val albumArtistText = listOfNotNull(
-            trackInfo.artistName.takeIf { it?.isNotEmpty() ?: false },
-            trackInfo.albumName.takeIf { it?.isNotEmpty() ?: false }
+            trackInfo.artistName.takeIf { it.isNotEmpty()},
+            trackInfo.albumName.takeIf { it.isNotEmpty() }
         ).joinToString(" - ")
         albumArtistText.takeIf { it.isNotEmpty() }?.let {
             MarqueeText(
                 text = it,
                 fontSize = 10.sp,
-                fontColor = MaterialTheme.colors.onSurfaceVariant
+                fontColor = accentColor
             )
         }
     }

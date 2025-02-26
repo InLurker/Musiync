@@ -1,0 +1,88 @@
+package com.metrolist.music.presentation.ui.screens
+
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.wear.compose.material3.HorizontalPagerScaffold
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.metrolist.music.presentation.theme.MetrolistTheme
+import com.metrolist.music.presentation.viewmodel.PlayerViewModel
+import kotlinx.coroutines.flow.collectLatest
+
+
+@Composable
+fun MainScreen(
+    viewModel: PlayerViewModel = hiltViewModel()
+) {
+    val pagerState = rememberPagerState { 2 }
+
+    val currentTrack by viewModel.currentTrack.collectAsState()
+    val artworkBitmaps by viewModel.artworkBitmaps.collectAsState()
+    val currentArtwork by produceState<Bitmap?>(initialValue = null, currentTrack) {
+        currentTrack?.artworkUrl?.let { artworkUrl ->
+            val bitmapFlow = artworkBitmaps[artworkUrl]
+            if (bitmapFlow != null) {
+                bitmapFlow.collectLatest { bitmap ->
+                    viewModel.updateAccentColor(bitmap)
+                    value = bitmap
+                }
+            } else {
+                value = null
+            }
+        }
+    }
+
+    MetrolistTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = Color.Black)
+        ) {
+            val imageData = currentArtwork ?: currentTrack?.artworkUrl
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(imageData)
+                    .crossfade(1000)
+                    .build(),
+                onSuccess = { result ->
+                    if (imageData is String) {
+                        val bitmapDrawable = result.result.drawable
+                        if (bitmapDrawable is BitmapDrawable) {
+                            viewModel.updateAccentColor(bitmapDrawable.bitmap)
+                            viewModel.appendBitmapToArtworkMap(currentTrack?.artworkUrl!!, bitmapDrawable.bitmap)
+                        }
+                    }
+                },
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxHeight()
+            )
+            HorizontalPagerScaffold(
+                pagerState = pagerState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+            ) { page ->
+                when (page) {
+                    0 -> PlayerScreen(viewModel)
+                    1 -> QueueScreen(viewModel)
+                }
+            }
+        }
+    }
+}

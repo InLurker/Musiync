@@ -18,6 +18,7 @@ import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
 import com.metrolist.music.wear.helper.resizeBitmap
+import com.metrolist.music.wear.model.MusicQueue
 import com.metrolist.music.wear.model.TrackInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,31 +91,49 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
     }
 
-    fun handleQueueRangeRequest(start: Int, end: Int, callback: (Map<Int,TrackInfo>) -> Unit) {
+    fun handleQueueRangeRequest(start: Int, end: Int, callback: (MusicQueue?) -> Unit) {
         callback(getPaginatedQueue(start, end))
     }
 
-    private fun getPaginatedQueue(start: Int, end: Int): Map<Int, TrackInfo> {
+    private fun getPaginatedQueue(start: Int, end: Int): MusicQueue? {
         playerConnection?.let { connection ->
             val queue = connection.queueWindows.value
-            val paginatedQueue = getPaginatedMap(queue, start, end)
+            val paginatedQueue = constructMusicQueue(queue, start, end)
             return paginatedQueue
         } ?: run {
-            return emptyMap()
+            return null
         }
     }
 
-    private fun getPaginatedMap(queue: List<Timeline. Window>, start: Int, end: Int): Map<Int, TrackInfo> {
-        return queue.subList(start, end).mapIndexed { index, window ->
-            val originalIndex = start + index
-            originalIndex to TrackInfo(
-                window.mediaItem.mediaMetadata.title.toString(),
-                window.mediaItem.mediaMetadata.artist.toString(),
-                window.mediaItem.mediaMetadata.albumTitle.toString(),
-                window.mediaItem.mediaMetadata.artworkUri.toString(),
-                window.mediaItem.mediaMetadata.artworkData?.let { generateResizedAssetFromByteArray(400, it) }
-            )
-        }.toMap()
+    private fun constructMusicQueue(
+        queue: List<Timeline.Window>,
+        start: Int,
+        end: Int
+    ): MusicQueue {
+        val subQueue = queue.subList(start, end)
+        val trackList = mutableMapOf<Int, TrackInfo>()
+        val artworkMap = mutableMapOf<String, Asset>()
+
+        for ((i, window) in subQueue.withIndex()) {
+            val originalIndex = start + i
+            val mediaMetadata = window.mediaItem.mediaMetadata
+
+            val title = mediaMetadata.title.toString()
+            val artist = mediaMetadata.artist.toString()
+            val albumTitle = mediaMetadata.albumTitle.toString()
+            val artworkUri = mediaMetadata.artworkUri.toString()
+
+            trackList[originalIndex] = TrackInfo(title, artist, albumTitle, artworkUri)
+
+            if (!artworkMap.containsKey(artworkUri)) {
+                mediaMetadata.artworkData?.let { data ->
+                    generateResizedAssetFromByteArray(400, data)?.let { asset ->
+                        artworkMap[artworkUri] = asset
+                    }
+                }
+            }
+        }
+        return MusicQueue(queue.hashCode(), trackList, artworkMap)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {
