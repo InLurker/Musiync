@@ -8,6 +8,7 @@ import androidx.palette.graphics.Palette
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
+import com.google.material.color.score.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -28,12 +29,14 @@ fun Asset.toBitmapFlow(dataClient: DataClient): Flow<Bitmap?> = flow {
 }.flowOn(Dispatchers.IO)
 
 
-fun Bitmap.extractThemeColor(): Color? {
-    return Palette
-        .from(this)
-        .maximumColorCount(16)
-        .generate()
-        .dominantSwatch
-        ?.rgb
-        ?.let { Color(it) }
+fun Bitmap.extractThemeColor(): Color {
+    val colorsToPopulation =
+        Palette
+            .from(this)
+            .maximumColorCount(16)
+            .generate()
+            .swatches
+            .associate { it.rgb to it.population }
+    val rankedColors = Score.score(colorsToPopulation)
+    return Color(rankedColors.first())
 }
