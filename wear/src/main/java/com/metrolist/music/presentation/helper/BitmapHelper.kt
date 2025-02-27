@@ -15,23 +15,20 @@ import com.google.android.gms.wearable.DataClient
 import com.google.material.color.score.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.InputStream
 
 @SuppressLint("VisibleForTests")
 suspend fun Asset.cacheInCoil(context: Context, dataClient: DataClient, key: String) {
     withContext(Dispatchers.IO) {
         try {
             val assetResponse = Tasks.await(dataClient.getFdForAsset(this@cacheInCoil))
-            val inputStream: InputStream? = assetResponse.inputStream
-            val options = BitmapFactory.Options().apply {
-                inPreferredConfig = Bitmap.Config.RGB_565
-            }
-            val bitmap = inputStream?.use { BitmapFactory.decodeStream(it, null, options) }
-            bitmap?.let {
+            assetResponse.inputStream.use { inputStream ->
+                val options = BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+                val bitmap =  BitmapFactory.decodeStream(inputStream, null, options) ?: return@withContext
                 val imageLoader = ImageLoader(context)
-
                 val request = ImageRequest.Builder(context)
-                    .data(it) // Use the bitmap as data
+                    .data(bitmap) // Use the bitmap as data
                     .memoryCacheKey(key) // Unique cache key based on artwork URL
                     .diskCacheKey(key) // Unique key for disk caching
                     .diskCachePolicy(CachePolicy.ENABLED) // Enable disk caching
@@ -46,8 +43,6 @@ suspend fun Asset.cacheInCoil(context: Context, dataClient: DataClient, key: Str
 }
 
 fun Bitmap.extractThemeColor(): Color {
-
-
     val colorsToPopulation =
         Palette
             .from(this)

@@ -1,8 +1,9 @@
 package com.metrolist.music.wear
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,7 +18,8 @@ import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
-import com.metrolist.music.wear.helper.resizeBitmap
+import com.metrolist.music.wear.helper.calculateSampleSize
+import com.metrolist.music.wear.helper.transformBitmap
 import com.metrolist.music.wear.model.MusicQueue
 import com.metrolist.music.wear.model.TrackInfo
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -297,35 +300,30 @@ class DataLayerHelper @Inject constructor(context: Context) {
 //        }
 //    }
 
+    @SuppressLint("NewApi")
     fun generateResizedAssetFromByteArray(size: Int, byteArray: ByteArray): Asset? {
         if (byteArray.isEmpty()) return null
-        val bitmap = resizeBitmap(
-            size,
-            BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
-        )
-        val stream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-        return Asset.createFromBytes(stream.toByteArray())
-    }
 
-    fun fetchBitmapByteFromCoil(url: String?, size: Int): Asset {
-        val bitmap = url?.let {
-            coil.diskCache?.openSnapshot(it)?.use {
-                val imageFile = it.data.toFile().readBytes()
-                if (imageFile.isEmpty()) {
-                    null
-                } else {
-                    resizeBitmap(
-                        size,
-                        BitmapFactory.decodeByteArray(imageFile, 0, imageFile.size)
-                    )
-                }
+        return try {
+            val source = ImageDecoder.createSource(ByteBuffer.wrap(byteArray))
+            val decodedBitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
+
+                // Calculate sample size based on original dimensions
+                val (originalWidth, originalHeight) = info.size.run { width to height }
+                decoder.setTargetSampleSize(calculateSampleSize(originalWidth, originalHeight, size))
             }
-        }
 
-        val stream = ByteArrayOutputStream()
-        bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, stream)
-        return Asset.createFromBytes(stream.toByteArray())
+            // Use matrix transformation for scaling and cropping
+            val result = transformBitmap(decodedBitmap, size)
+
+            ByteArrayOutputStream().use { stream ->
+                result.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                Asset.createFromBytes(stream.toByteArray())
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
 
