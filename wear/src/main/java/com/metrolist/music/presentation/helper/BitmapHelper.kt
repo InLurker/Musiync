@@ -1,36 +1,34 @@
 package com.metrolist.music.presentation.helper
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
 import androidx.palette.graphics.Palette
-import coil.ImageLoader
-import coil.request.CachePolicy
-import coil.request.ImageRequest
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
 import com.google.material.color.score.Score
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 
 @SuppressLint("VisibleForTests")
-fun Asset.toBitmapFlow(dataClient: DataClient): Flow<Bitmap?> = flow {
-    try {
-        val assetFileDescriptor = Tasks.await(dataClient.getFdForAsset(this@toBitmapFlow))
-        val inputStream = assetFileDescriptor.inputStream
-        val bitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream.close()
-        emit(bitmap)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        emit(null)
+suspend fun Asset.toBitmap(dataClient: DataClient): Bitmap? {
+    return withContext(Dispatchers.IO) {
+        try {
+            val assetResponse = Tasks.await(dataClient.getFdForAsset(this@toBitmap))
+            assetResponse.inputStream.use { inputStream ->
+                val options = BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+                inputStream.use { BitmapFactory.decodeStream(it, null, options) }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
-}.flowOn(Dispatchers.IO)
+}
 
 
 fun Bitmap.extractThemeColor(): Color {

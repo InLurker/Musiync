@@ -2,6 +2,7 @@ package com.metrolist.music.presentation.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -21,7 +21,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.metrolist.music.presentation.theme.MetrolistTheme
 import com.metrolist.music.presentation.viewmodel.PlayerViewModel
-import kotlinx.coroutines.flow.collectLatest
 
 
 @Composable
@@ -31,20 +30,7 @@ fun MainScreen(
     val pagerState = rememberPagerState { 2 }
 
     val currentTrack by viewModel.currentTrack.collectAsState()
-    val artworkBitmaps by viewModel.artworkBitmaps.collectAsState()
-    val currentArtwork by produceState<Bitmap?>(initialValue = null, currentTrack) {
-        currentTrack?.artworkUrl?.let { artworkUrl ->
-            val bitmapFlow = artworkBitmaps[artworkUrl]
-            if (bitmapFlow != null) {
-                bitmapFlow.collectLatest { bitmap ->
-                    viewModel.updateAccentColor(bitmap)
-                    value = bitmap
-                }
-            } else {
-                value = null
-            }
-        }
-    }
+    val artworkBitmaps by viewModel.currentArtwork.collectAsState()
 
     MetrolistTheme {
         Box(
@@ -52,11 +38,13 @@ fun MainScreen(
                 .fillMaxSize()
                 .background(color = Color.Black)
         ) {
-            val imageData = currentArtwork ?: currentTrack?.artworkUrl
+            val imageData = artworkBitmaps ?: currentTrack?.artworkUrl
+            Log.d("MainScreen", "Artwork: $imageData")
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(imageData)
                     .crossfade(1000)
+                    .bitmapConfig(Bitmap.Config.RGB_565)
                     .build(),
                 onSuccess = { result ->
                     if (imageData is String) {

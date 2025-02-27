@@ -13,7 +13,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -61,6 +60,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun appendBitmapToArtworkMap(url: String, bitmap: Bitmap) {
-        musicRepository.artworks.value[url] = flowOf(bitmap)
+        musicRepository.artworks.value[url] = bitmap
     }
 }

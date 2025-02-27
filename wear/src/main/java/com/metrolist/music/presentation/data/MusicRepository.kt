@@ -9,7 +9,6 @@ import com.metrolist.music.presentation.wear.MessageClientService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -26,7 +25,7 @@ class MusicRepository @Inject constructor(
 ) {
     val queue = MutableStateFlow<MutableMap<Int, TrackInfo>>(mutableMapOf())
 
-    val artworks = MutableStateFlow<MutableMap<String, Flow<Bitmap?>>>(mutableMapOf())
+    val artworks = MutableStateFlow<MutableMap<String, Bitmap?>>(mutableMapOf())
 
     val musicState = MutableStateFlow<MusicState?>(null)
 
@@ -90,7 +89,7 @@ class MusicRepository @Inject constructor(
         } ?: true
     }
 
-    fun updateQueue(hash: Int, trackDelta: Map<Int, TrackInfo>?, artworkDelta: Map<String, Flow<Bitmap?>>?) {
+    fun updateQueue(hash: Int, trackDelta: Map<Int, TrackInfo>?, artworkDelta: Map<String, Bitmap?>?) {
         if (hash != musicState.value?.queueHash) {
             Log.d("MusicRepository", "Received new queue with hash: $hash")
             queue.value.clear()

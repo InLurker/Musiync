@@ -14,9 +14,12 @@ import com.metrolist.music.common.enumerated.DataLayerPathEnum
 import com.metrolist.music.common.models.MusicState
 import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.data.MusicRepository
-import com.metrolist.music.presentation.helper.toBitmapFlow
+import com.metrolist.music.presentation.helper.toBitmap
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 
@@ -27,6 +30,8 @@ class DataClientService : WearableListenerService() {
     lateinit var musicRepository: MusicRepository
 
     private lateinit var dataClient: DataClient
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -43,7 +48,10 @@ class DataClientService : WearableListenerService() {
                             processCurrentState(event)
                         }
                         DataLayerPathEnum.QUEUE_RESPONSE -> {
-                            processQueueResponse(event)
+                            val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                            serviceScope.launch {
+                                processQueueResponse(dataMap)
+                            }
                         }
                         else -> {
                             Log.d("WearDataListenerService", "Unknown data item path: $it")
@@ -65,8 +73,7 @@ class DataClientService : WearableListenerService() {
         musicRepository.handleIncomingState(musicState)
     }
 
-    private fun processQueueResponse(dataEvent: DataEvent) {
-        val dataMap = DataMapItem.fromDataItem(dataEvent.dataItem).dataMap
+    private suspend fun processQueueResponse(dataMap: DataMap) {
         val hash = dataMap.getInt("queueHash")
         Log.d("WearDataListenerService", "Received queue response with hash: $hash")
 
@@ -91,11 +98,12 @@ class DataClientService : WearableListenerService() {
         return queue
     }
 
-    private fun extractArtworkAssetsFromDataMap(artworkDataMap: DataMap): Map<String, Flow<Bitmap?>> {
-        val artworkAssets = mutableMapOf<String, Flow<Bitmap?>>()
+    private suspend fun extractArtworkAssetsFromDataMap(artworkDataMap: DataMap): Map<String, Bitmap?> {
+        val artworkAssets = mutableMapOf<String, Bitmap?>()
         for (key in artworkDataMap.keySet()) {
-            artworkDataMap.getAsset(key)?.let {
-                artworkAssets[key] = it.toBitmapFlow(dataClient)
+            artworkDataMap.getAsset(key)?.let { asset ->
+                val bitmap = asset.toBitmap(dataClient) // Convert to Bitmap immediately
+                artworkAssets[key] = bitmap
             }
         }
         return artworkAssets

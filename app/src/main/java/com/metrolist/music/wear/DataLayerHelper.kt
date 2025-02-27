@@ -307,7 +307,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
         return try {
             val source = ImageDecoder.createSource(ByteBuffer.wrap(byteArray))
             val decodedBitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
 
                 // Calculate sample size based on original dimensions
                 val (originalWidth, originalHeight) = info.size.run { width to height }
