@@ -1,9 +1,12 @@
 package com.metrolist.music.presentation.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -21,7 +24,10 @@ fun PlaybackControl(
     onCommand: (WearCommandEnum) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-
+    val animatedColor by animateColorAsState(
+        targetValue = accentColor ?: MaterialTheme.colorScheme.primary,
+        animationSpec = tween(durationMillis = 1000)
+    )
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceAround
@@ -37,7 +43,7 @@ fun PlaybackControl(
         }
         CompactButton(
             onClick = { onCommand(WearCommandEnum.PLAY_PAUSE) },
-            colors = ButtonDefaults.buttonColors(backgroundColor = accentColor ?: MaterialTheme.colorScheme.primary)
+            colors = ButtonDefaults.buttonColors(backgroundColor = animatedColor)
         ) {
             Icon(
                 painter = painterResource(id = if (isPlaying) R.drawable.pause else R.drawable.play),

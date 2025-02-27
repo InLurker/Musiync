@@ -1,7 +1,7 @@
 package com.metrolist.music.presentation.wear
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
+import android.content.Context
 import android.util.Log
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
@@ -14,9 +14,12 @@ import com.metrolist.music.common.enumerated.DataLayerPathEnum
 import com.metrolist.music.common.models.MusicState
 import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.data.MusicRepository
-import com.metrolist.music.presentation.helper.toBitmapFlow
+import com.metrolist.music.presentation.helper.cacheInCoil
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 
@@ -27,6 +30,8 @@ class DataClientService : WearableListenerService() {
     lateinit var musicRepository: MusicRepository
 
     private lateinit var dataClient: DataClient
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -43,7 +48,14 @@ class DataClientService : WearableListenerService() {
                             processCurrentState(event)
                         }
                         DataLayerPathEnum.QUEUE_RESPONSE -> {
-                            processQueueResponse(event)
+                            val dataItem = DataMapItem.fromDataItem(event.dataItem).dataMap
+                            serviceScope.launch {
+                                try {
+                                    processQueueResponse(dataItem)
+                                } catch (e: Exception) {
+                                    Log.e("WearDataListenerService", "Error processing queue response", e)
+                                }
+                            }
                         }
                         else -> {
                             Log.d("WearDataListenerService", "Unknown data item path: $it")
@@ -65,15 +77,13 @@ class DataClientService : WearableListenerService() {
         musicRepository.handleIncomingState(musicState)
     }
 
-    private fun processQueueResponse(dataEvent: DataEvent) {
-        val dataMap = DataMapItem.fromDataItem(dataEvent.dataItem).dataMap
+    private suspend fun processQueueResponse(dataMap: DataMap) {
         val hash = dataMap.getInt("queueHash")
         Log.d("WearDataListenerService", "Received queue response with hash: $hash")
 
         val queue = dataMap.getDataMap("trackList")?.let { extractTrackInfoFromDataMap(it) }
-        val artworkAssets = dataMap.getDataMap("artworkAssets")?.let { extractArtworkAssetsFromDataMap(it) }
-
-        musicRepository.updateQueue(hash, queue, artworkAssets)
+        musicRepository.updateQueue(hash, queue)
+        dataMap.getDataMap("artworkAssets")?.let { extractArtworkAssetsFromDataMap(it, this@DataClientService) }
     }
 
     private fun extractTrackInfoFromDataMap(tracksDataMap: DataMap): Map<Int, TrackInfo> {
@@ -91,13 +101,12 @@ class DataClientService : WearableListenerService() {
         return queue
     }
 
-    private fun extractArtworkAssetsFromDataMap(artworkDataMap: DataMap): Map<String, Flow<Bitmap?>> {
-        val artworkAssets = mutableMapOf<String, Flow<Bitmap?>>()
+    private suspend fun extractArtworkAssetsFromDataMap(
+        artworkDataMap: DataMap,
+        context: Context
+    ) {
         for (key in artworkDataMap.keySet()) {
-            artworkDataMap.getAsset(key)?.let {
-                artworkAssets[key] = it.toBitmapFlow(dataClient)
-            }
+            artworkDataMap.getAsset(key)?.cacheInCoil(context, dataClient, key)
         }
-        return artworkAssets
     }
 }

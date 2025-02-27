@@ -1,35 +1,53 @@
 package com.metrolist.music.presentation.helper
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
 import androidx.palette.graphics.Palette
+import coil.ImageLoader
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
 import com.google.material.color.score.Score
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import java.io.InputStream
 
 @SuppressLint("VisibleForTests")
-fun Asset.toBitmapFlow(dataClient: DataClient): Flow<Bitmap?> = flow {
-    try {
-        val assetFileDescriptor = Tasks.await(dataClient.getFdForAsset(this@toBitmapFlow))
-        val inputStream = assetFileDescriptor.inputStream
-        val bitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream.close()
-        emit(bitmap)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        emit(null)
-    }
-}.flowOn(Dispatchers.IO)
+suspend fun Asset.cacheInCoil(context: Context, dataClient: DataClient, key: String) {
+    withContext(Dispatchers.IO) {
+        try {
+            val assetResponse = Tasks.await(dataClient.getFdForAsset(this@cacheInCoil))
+            val inputStream: InputStream? = assetResponse.inputStream
+            val options = BitmapFactory.Options().apply {
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            val bitmap = inputStream?.use { BitmapFactory.decodeStream(it, null, options) }
+            bitmap?.let {
+                val imageLoader = ImageLoader(context)
 
+                val request = ImageRequest.Builder(context)
+                    .data(it) // Use the bitmap as data
+                    .memoryCacheKey(key) // Unique cache key based on artwork URL
+                    .diskCacheKey(key) // Unique key for disk caching
+                    .diskCachePolicy(CachePolicy.ENABLED) // Enable disk caching
+                    .build()
+
+                imageLoader.enqueue(request) // Store in Coil cache
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}
 
 fun Bitmap.extractThemeColor(): Color {
+
+
     val colorsToPopulation =
         Palette
             .from(this)
