@@ -39,8 +39,8 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
             when (messageEvent.path) {
                 MessageLayerPathEnum.REQUEST_QUEUE.path -> {
                     Timber.tag("MessageLayerHelper").d("Received request for queue")
-                    val (start, end) = String(messageEvent.data).split(",").map { it.toInt() }
-                    dataLayerHelper.handleQueueRangeRequest(start, end) { queue ->
+                    val requestedIndices = String(messageEvent.data).split(",").map { it.toInt() }
+                    dataLayerHelper.handleQueueRangeRequest(requestedIndices) { queue ->
                         if (queue == null || queue.trackList.isEmpty()) {
                             Timber.tag("MessageLayerHelper").d("Queue is empty")
                             return@handleQueueRangeRequest
@@ -48,7 +48,7 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                         // Create a main DataMap request.
                         val request = PutDataMapRequest.create(DataLayerPathEnum.QUEUE_RESPONSE.path)
                         val dataMap = request.dataMap
-                        dataMap.putInt("queueHash", queue.queueHash)
+                        dataMap.putString("queueHash", queue.queueHash)
 
                         // Build a nested DataMap for the track list.
                         val tracksDataMap = DataMap()

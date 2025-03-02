@@ -44,6 +44,7 @@ fun MainScreen(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(imageData)
                     .crossfade(1000)
+                    .allowHardware(false)
                     .bitmapConfig(Bitmap.Config.RGB_565)
                     .build(),
                 onSuccess = { result ->

@@ -74,7 +74,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
             try {
                 val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
                     val queue = playerConnection?.queueWindows?.value
-                    dataMap.putInt("queueHash", queue.hashCode())
+                    dataMap.putString("queueHash", queue?.map { it.uid.hashCode()  }?.joinToString(",") ?: "")
                     dataMap.putInt("queueSize", queue?.size ?: 0)
                     dataMap.putInt("currentIndex", playerConnection?.currentWindowIndex?.value ?: 0)
                     dataMap.putBoolean("isPlaying", playerConnection?.isPlaying?.value ?: false)
@@ -94,14 +94,14 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
     }
 
-    fun handleQueueRangeRequest(start: Int, end: Int, callback: (MusicQueue?) -> Unit) {
-        callback(getPaginatedQueue(start, end))
+    fun handleQueueRangeRequest(requestedIndices: List<Int>, callback: (MusicQueue?) -> Unit) {
+        callback(getPaginatedQueue(requestedIndices))
     }
 
-    private fun getPaginatedQueue(start: Int, end: Int): MusicQueue? {
+    private fun getPaginatedQueue(requestedIndices: List<Int>): MusicQueue? {
         playerConnection?.let { connection ->
             val queue = connection.queueWindows.value
-            val paginatedQueue = constructMusicQueue(queue, start, end)
+            val paginatedQueue = constructMusicQueue(queue, requestedIndices)
             return paginatedQueue
         } ?: run {
             return null
@@ -110,15 +110,13 @@ class DataLayerHelper @Inject constructor(context: Context) {
 
     private fun constructMusicQueue(
         queue: List<Timeline.Window>,
-        start: Int,
-        end: Int
+        requestedIndices: List<Int>
     ): MusicQueue {
-        val subQueue = queue.subList(start, end)
         val trackList = mutableMapOf<Int, TrackInfo>()
         val artworkMap = mutableMapOf<String, Asset>()
 
-        for ((i, window) in subQueue.withIndex()) {
-            val originalIndex = start + i
+        for (index in requestedIndices) {
+            val window = queue[index]
             val mediaMetadata = window.mediaItem.mediaMetadata
 
             val title = mediaMetadata.title.toString()
@@ -126,7 +124,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
             val albumTitle = mediaMetadata.albumTitle.toString()
             val artworkUri = mediaMetadata.artworkUri.toString()
 
-            trackList[originalIndex] = TrackInfo(title, artist, albumTitle, artworkUri)
+            trackList[index] = TrackInfo(title, artist, albumTitle, artworkUri)
 
             if (!artworkMap.containsKey(artworkUri)) {
                 mediaMetadata.artworkData?.let { data ->
@@ -136,7 +134,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 }
             }
         }
-        return MusicQueue(queue.hashCode(), trackList, artworkMap)
+        return MusicQueue(queue.map { it.uid.hashCode() }.joinToString(","), trackList, artworkMap)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {
@@ -322,6 +320,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 Asset.createFromBytes(stream.toByteArray())
             }
         } catch (e: Exception) {
+            Timber.tag("DataLayerHelper").e(e, "Failed to generate resized asset from byte array")
             null
         }
     }

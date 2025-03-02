@@ -47,10 +47,7 @@ fun TrackListItem(
                 .data(trackInfo.artworkUrl)
                 .crossfade(1000)
                 .bitmapConfig(Bitmap.Config.RGB_565)
-                .memoryCacheKey(trackInfo.artworkUrl)
-                .diskCacheKey(trackInfo.artworkUrl)
-                .bitmapConfig(Bitmap.Config.RGB_565)
-                .diskCachePolicy(CachePolicy.ENABLED)
+                .allowHardware(false)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .build(),
             contentDescription = "Album Artwork",

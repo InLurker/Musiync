@@ -12,7 +12,10 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,31 +26,28 @@ import kotlin.math.min
 class MusicRepository @Inject constructor(
     private val messageClientService: MessageClientService
 ) {
-    val queue = MutableStateFlow<MutableMap<Int, TrackInfo>>(mutableMapOf())
-
+    val queue = MutableStateFlow<MutableMap<Int, TrackInfo>>(sortedMapOf())
     val artworks = MutableStateFlow<MutableMap<String, Bitmap?>>(mutableMapOf())
-
     val musicState = MutableStateFlow<MusicState?>(null)
-
     val accentColor = MutableStateFlow<Color?>(null)
 
-    private var queueRequested: Boolean = false
-    private val queueAvailable = MutableSharedFlow<Unit>(replay = 1)
-
     private val scope = CoroutineScope(Dispatchers.IO)
-
     private val queueUpdateSignal = MutableSharedFlow<Unit>()
-
+    private val mutex = Mutex()
 
     fun setAccentColor(color: Color) {
         accentColor.value = color
     }
 
     fun handleIncomingState(state: MusicState) {
-        if (shouldRequestQueue(state)) {
+        if (shouldReInitializeQueue(state)) {
+            queue.value.clear()
+            artworks.value.clear()
             scope.launch {
-                requestPaginatedQueue(state.currentIndex, state.queueSize)
-                waitForQueueUpdate()
+                val range = calculateInitialPageRange(state.currentIndex, state.queueSize)
+                if (requestPaginatedQueue(range.first, range.second)) {
+                    waitForQueueUpdate()
+                }
                 updateState(state)
             }
         } else {
@@ -55,22 +55,24 @@ class MusicRepository @Inject constructor(
         }
     }
 
-    private fun calculatePageRange(currentIndex: Int, queueSize: Int): Pair<Int, Int> {
-        if (queueSize <= 0) {
-            // Handle empty queue case
-            return Pair(0, 0)
-        }
+    fun calculateInitialPageRange(currentIndex: Int, totalQueueSize: Int): Pair<Int, Int> {
+        if (totalQueueSize <= 0) return Pair(0, 0)
 
         return when {
-            currentIndex < 2 -> Pair(0, min(5, queueSize)) // First 5 items (or fewer if queue is small)
-            currentIndex > queueSize - 3 -> Pair(max(0, queueSize - 5), queueSize) // Last 5 items
-            else -> Pair(max(0, currentIndex - 2), min(currentIndex + 3, queueSize)) // Centered window
+            currentIndex < 3 -> Pair(0, min(7, totalQueueSize)) // First 7 items
+            currentIndex > totalQueueSize - 4 -> Pair(max(0, totalQueueSize - 7), totalQueueSize) // Last 7 items
+            else -> Pair(max(0, currentIndex - 3), min(currentIndex + 4, totalQueueSize)) // Centered window
         }
     }
 
-    private fun requestPaginatedQueue(currentIndex: Int, queueSize: Int) {
-        val (start, end) = calculatePageRange(currentIndex, queueSize)
-        messageClientService.sendQueueRangeRequest(start, end)
+    fun requestPaginatedQueue(startIndex: Int, endSize: Int): Boolean {
+        val currentQueue = queue.value
+        val desiredIndices = (startIndex until endSize).filterNot { index -> currentQueue.containsKey(index) }
+        if (desiredIndices.isNotEmpty()) {
+            messageClientService.sendQueueEntriesRequest(desiredIndices)
+            return false
+        }
+        return true
     }
 
     private suspend fun waitForQueueUpdate() {
@@ -83,32 +85,37 @@ class MusicRepository @Inject constructor(
         }
     }
 
-    private fun shouldRequestQueue(state: MusicState): Boolean {
+    private fun shouldReInitializeQueue(state: MusicState): Boolean {
         return musicState.value?.let { current ->
             current.queueHash != state.queueHash || current.queueSize != state.queueSize
         } ?: true
     }
 
-    fun updateQueue(hash: Int, trackDelta: Map<Int, TrackInfo>?, artworkDelta: Map<String, Bitmap?>?) {
-        if (hash != musicState.value?.queueHash) {
-            Log.d("MusicRepository", "Received new queue with hash: $hash")
-            queue.value.clear()
-            artworks.value.clear()
-        }
-        queue.value = queue.value.toMutableMap().apply {
-            trackDelta?.let { putAll(it) }
-        }
-        artworks.value = artworks.value.toMutableMap().apply {
-            artworkDelta?.let { putAll(it) }
-        }
+    suspend fun updateQueue(
+        hash: String,
+        trackDelta: Map<Int, TrackInfo>?,
+        artworkDelta: suspend () -> Map<String, Bitmap?>?
+    ) {
+        mutex.withLock {
+            if (hash != musicState.value?.queueHash) {
+                Log.d("MusicRepository", "Received new queue with hash: $hash")
+                queue.value.clear()
+                artworks.value.clear()
+            }
 
-        scope.launch {
-            queueUpdateSignal.emit(Unit)
+            queue.update { it.toMutableMap().apply { trackDelta?.let { putAll(it) } } }
+
+            scope.launch {
+                queueUpdateSignal.emit(Unit)
+                val newArtworks = artworkDelta()
+                if (newArtworks != null) {
+                    artworks.update { it.toMutableMap().apply { putAll(newArtworks) } }
+                }
+            }
         }
     }
 
     private fun updateState(state: MusicState) {
         musicState.value = state
     }
-
 }
