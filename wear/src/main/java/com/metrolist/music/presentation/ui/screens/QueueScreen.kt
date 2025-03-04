@@ -62,6 +62,16 @@ fun QueueScreen(viewModel: PlayerViewModel) {
 //                }
 //            }
 //    }
+
+
+    val passiveColor = accentColor?.let {
+        lerp(Color.Black, it, 0.2f)
+    } ?: Color.Black
+    Log.d("InColumn", displayedIndices.joinToString())
+    val activeColor = accentColor?.let {
+        lerp(Color.Black, it, 0.5f)
+    } ?: Color.Black
+
     // Display the list
     if (displayedIndices.isEmpty()) {
         Box(
@@ -79,16 +89,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         state = lazyListState,
         modifier = Modifier.fillMaxSize()
     ) {
-        val passiveColor = accentColor?.let {
-            lerp(Color.Black, it, 0.2f)
-        } ?: Color.Black
-        Log.d("InColumn", displayedIndices.joinToString())
-        val activeColor = accentColor?.let {
-            lerp(Color.Black, it, 0.5f)
-        } ?: Color.Black
         items(displayedIndices) { index ->
-
-            Log.d("InItem", index.toString())
             musicQueue[index]?.let { track ->
                 TrackListItem(
                     trackInfo = track,

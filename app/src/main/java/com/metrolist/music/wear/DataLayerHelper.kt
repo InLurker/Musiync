@@ -157,7 +157,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                     isPlaying to mediaMetadata
                 }
                 .distinctUntilChanged() // Only emit if the values have changed
-                .debounce(300) // Debounce to limit the rate of emissions
+                .debounce(2000)
                 .collect {
                     sendCurrentState()
                 }
