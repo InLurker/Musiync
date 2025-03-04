@@ -2,6 +2,7 @@ package com.metrolist.music.presentation.data
 
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import com.metrolist.music.common.models.MusicState
 import com.metrolist.music.common.models.TrackInfo
@@ -30,6 +31,8 @@ class MusicRepository @Inject constructor(
     val artworks = MutableStateFlow<MutableMap<String, Bitmap?>>(mutableMapOf())
     val musicState = MutableStateFlow<MusicState?>(null)
     val accentColor = MutableStateFlow<Color?>(null)
+    var displayedIndices = mutableStateOf(listOf<Int>())
+
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private val queueUpdateSignal = MutableSharedFlow<Unit>()
@@ -49,6 +52,7 @@ class MusicRepository @Inject constructor(
                     waitForQueueUpdate()
                 }
                 updateState(state)
+                appendToDisplayedIndices(range.first, range.second)
             }
         } else {
             updateState(state)
@@ -117,5 +121,55 @@ class MusicRepository @Inject constructor(
 
     private fun updateState(state: MusicState) {
         musicState.value = state
+    }
+
+    private fun handleQueuePagination(currentIndex: Int) {
+        if (queue.value.isEmpty()) return
+
+        if (displayedIndices.value.isEmpty()) {
+            resetDisplayedQueue(currentIndex)
+        } else {
+            val firstDisplayed = displayedIndices.value.first()
+            val lastDisplayed = displayedIndices.value.last()
+            if (currentIndex in (firstDisplayed.rangeTo(firstDisplayed + 1))) {
+                fetchPreviousTracks(currentIndex)
+            } else if (currentIndex in (lastDisplayed - 1).rangeTo(lastDisplayed)) {
+                fetchNextTracks(currentIndex)
+            } else if (currentIndex < firstDisplayed || currentIndex > lastDisplayed) {
+                resetDisplayedQueue(currentIndex)
+            }
+        }
+    }
+
+    private fun fetchNextTracks(currentIndex: Int) {
+        val start = (displayedIndices.value.lastOrNull()?.plus(1) ?: return)
+        val end = min(musicState.value!!.queueSize, currentIndex + 8)
+        requestPaginatedQueue(start, end)
+        appendToDisplayedIndices(start, end)
+    }
+
+    private fun fetchPreviousTracks(currentIndex: Int) {
+        val end =  (displayedIndices.value.firstOrNull() ?: return)
+        val start = max(0, currentIndex - 7)
+        requestPaginatedQueue(start, end)
+        appendToDisplayedIndices(end, start)
+    }
+
+    private fun resetDisplayedQueue(currentIndex: Int) {
+        displayedIndices.value = emptyList()
+        val range = calculateInitialPageRange(currentIndex, musicState.value?.queueSize ?: 0)
+        requestPaginatedQueue(range.first, range.second)
+        appendToDisplayedIndices(range.first, range.second)
+    }
+
+    fun appendToDisplayedIndices(start: Int, end: Int) {
+        val range = if (start <= end) start until end else end until start
+        if (start >= end) {
+            // If reversed, insert at the front in reverse order
+            displayedIndices.value = range.reversed().toList() + displayedIndices.value
+        } else {
+            // Normal case: append at the end
+            displayedIndices.value += range
+        }
     }
 }

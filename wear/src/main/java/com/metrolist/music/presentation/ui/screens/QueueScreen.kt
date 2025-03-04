@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,6 +19,8 @@ import androidx.wear.compose.material.Text
 import com.metrolist.music.presentation.ui.components.TrackListItem
 import com.metrolist.music.presentation.viewmodel.PlayerViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -36,32 +39,32 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         lazyListState.scrollToItem(currentIndex)
     }
 
-//    LaunchedEffect(lazyListState) {
-//        snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
-//            .debounce(1.seconds) // Prevent rapid consecutive calls
-//            .collect { visibleItems ->
-//                if (visibleItems.isEmpty()) return@collect
-//
-//                val firstVisibleItem = visibleItems.first()
-//                val lastVisibleItem = visibleItems.last()
-//
-//                // Convert LazyList indices to actual track indices
-//                val firstVisibleTrackIndex = displayedIndices.getOrNull(firstVisibleItem.index)
-//                val lastVisibleTrackIndex = displayedIndices.getOrNull(lastVisibleItem.index)
-//
-//                firstVisibleTrackIndex?.let { trackIndex ->
-//                    if (trackIndex <= (displayedIndices.firstOrNull() ?: return@let) + 2) {
-//                        viewModel.fetchPreviousTracksForScroll()
-//                    }
-//                }
-//
-//                lastVisibleTrackIndex?.let { trackIndex ->
-//                    if (trackIndex >= (displayedIndices.lastOrNull() ?: return@let) - 2) {
-//                        viewModel.fetchNextTracksForScroll()
-//                    }
-//                }
-//            }
-//    }
+    LaunchedEffect(lazyListState) {
+        snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
+            .debounce(1.seconds) // Prevent rapid consecutive calls
+            .collect { visibleItems ->
+                if (visibleItems.isEmpty()) return@collect
+
+                val firstVisibleItem = visibleItems.first()
+                val lastVisibleItem = visibleItems.last()
+
+                // Convert LazyList indices to actual track indices
+                val firstVisibleTrackIndex = displayedIndices.getOrNull(firstVisibleItem.index)
+                val lastVisibleTrackIndex = displayedIndices.getOrNull(lastVisibleItem.index)
+
+                firstVisibleTrackIndex?.let { trackIndex ->
+                    if (trackIndex <= (displayedIndices.firstOrNull() ?: return@let) + 2) {
+                        viewModel.fetchPreviousTracksForScroll()
+                    }
+                }
+
+                lastVisibleTrackIndex?.let { trackIndex ->
+                    if (trackIndex >= (displayedIndices.lastOrNull() ?: return@let) - 2) {
+                        viewModel.fetchNextTracksForScroll()
+                    }
+                }
+            }
+    }
 
 
     val passiveColor = accentColor?.let {
