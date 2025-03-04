@@ -6,15 +6,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,11 +31,13 @@ fun TrackListItem(
     trackInfo: TrackInfo,
     isPlaying: Boolean,
     passiveColor: Color,
-    activeColor: Color
+    activeColor: Color,
+    artworkBitmap: Bitmap?
 ) {
     Row(
         modifier = Modifier
-            .padding(4.dp)
+            .padding(vertical = 4.dp)
+            .padding(start = 4.dp, end = 8.dp)
             .background(
                 color = if (isPlaying) activeColor else passiveColor
             )
@@ -44,7 +46,7 @@ fun TrackListItem(
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(trackInfo.artworkUrl)
+                .data(artworkBitmap ?: trackInfo.artworkUrl)
                 .crossfade(1000)
                 .bitmapConfig(Bitmap.Config.RGB_565)
                 .allowHardware(false)
@@ -53,9 +55,9 @@ fun TrackListItem(
             contentDescription = "Album Artwork",
             modifier = Modifier
                 .padding(8.dp)
-                .height(32.dp)
-                .width(32.dp)
-                .clip(RoundedCornerShape(5.dp))
+                .size(32.dp)
+                .clip(RoundedCornerShape(5.dp)),
+            contentScale = ContentScale.Crop
         )
         Column(
             horizontalAlignment = Alignment.Start,
@@ -70,10 +72,15 @@ fun TrackListItem(
                 fontWeight = FontWeight.Bold,
                 overflow = TextOverflow.Ellipsis
             )
-            val albumArtistText = listOfNotNull(
-                trackInfo.artistName.takeIf { it.isNotEmpty()},
-                trackInfo.albumName.takeIf { it.isNotEmpty() }
-            ).joinToString(" - ")
+            val albumArtistText = buildString {
+                trackInfo.artistName?.takeIf { it.isNotEmpty() }?.let {
+                    append(it)
+                }
+                trackInfo.albumName?.takeIf { it.isNotEmpty() }?.let {
+                    if (isNotEmpty()) append(" - ")
+                    append(it)
+                }
+            }
             albumArtistText.takeIf { it.isNotEmpty() }?.let {
                 Text(
                     text = albumArtistText,

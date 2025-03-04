@@ -1,8 +1,6 @@
 package com.metrolist.music.presentation.viewmodel
 
 import android.graphics.Bitmap
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,12 +29,11 @@ class PlayerViewModel @Inject constructor(
 ) : ViewModel() {
 
     // Make sure the object changes when the current track changes
-    var queueHash = musicRepository.musicState.value?.queueHash
     val musicState = musicRepository.musicState
     val accentColor = musicRepository.accentColor
     val musicQueue = musicRepository.queue
     val artworkBitmaps = musicRepository.artworks
-    var displayedIndices by musicRepository.displayedIndices
+    var displayedIndices = musicRepository.displayedIndices
     val currentTrack = musicState.combine(musicQueue) { state, queue ->
         state?.let { queue.get(it.currentIndex) }
     }
@@ -83,7 +80,7 @@ class PlayerViewModel @Inject constructor(
     fun fetchNextTracksForScroll() {
         val lastDisplayed = displayedIndices.lastOrNull() ?: return
         val start = lastDisplayed + 1
-        val end = min(musicQueue.value.keys.last(), lastDisplayed + 8)
+        val end = min(musicState.value?.queueSize ?: return, lastDisplayed + 8)
 
         if (start <= end) {
             musicRepository.requestPaginatedQueue(start, end)
