@@ -48,12 +48,10 @@ fun MainScreen(
                     .bitmapConfig(Bitmap.Config.RGB_565)
                     .build(),
                 onSuccess = { result ->
-                    if (imageData is String) {
-                        val bitmapDrawable = result.result.drawable
-                        if (bitmapDrawable is BitmapDrawable) {
-                            viewModel.updateAccentColor(bitmapDrawable.bitmap)
-                            viewModel.appendBitmapToArtworkMap(currentTrack?.artworkUrl!!, bitmapDrawable.bitmap)
-                        }
+                    val bitmapDrawable = result.result.drawable
+                    if (bitmapDrawable is BitmapDrawable) {
+                        viewModel.updateAccentColor(bitmapDrawable.bitmap)
+                        viewModel.appendBitmapToArtworkMap(currentTrack?.artworkUrl!!, bitmapDrawable.bitmap)
                     }
                 },
                 contentDescription = null,

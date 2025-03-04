@@ -1,11 +1,13 @@
 package com.metrolist.music.presentation.ui.screens
 
 import android.util.Log
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -60,13 +62,18 @@ fun QueueScreen(viewModel: PlayerViewModel) {
 //                }
 //            }
 //    }
-
     // Display the list
-    Text(
-        text = if (displayedIndices.isEmpty()) "Loading..." else "NOTHING HERE",
-        modifier = Modifier.fillMaxSize(),
-        color = Color.White
-    )
+    if (displayedIndices.isEmpty()) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Text(
+                text = "Queue is Empty",
+                color = Color.White
+            )
+        }
+    }
 
     ScalingLazyColumn(
         state = lazyListState,
@@ -74,11 +81,11 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     ) {
         val passiveColor = accentColor?.let {
             lerp(Color.Black, it, 0.2f)
-        } ?: Color.White
+        } ?: Color.Black
         Log.d("InColumn", displayedIndices.joinToString())
         val activeColor = accentColor?.let {
             lerp(Color.Black, it, 0.5f)
-        } ?: Color.White
+        } ?: Color.Black
         items(displayedIndices) { index ->
 
             Log.d("InItem", index.toString())
