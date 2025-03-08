@@ -71,9 +71,17 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                     dataLayerHelper.sendCurrentState()
                 }
                 MessageLayerPathEnum.PLAYBACK_COMMAND.path -> {
-                    Timber.tag("MessageLayerHelper").d("Received playback command")
                     val command = WearCommandEnum.valueOf(String(messageEvent.data))
+                    Timber.tag("MessageLayerHelper").d("Received playback command: $command")
                     handleMusicCommand(command)
+                }
+                MessageLayerPathEnum.REQUEST_SEEK.path -> {
+                    val commandData = String(messageEvent.data).split(":")
+                    val command = WearCommandEnum.valueOf(commandData[0])
+                    val index = commandData[1].toInt()
+
+                    Timber.tag("MessageLayerHelper").d("Received submit index command: $command with index: $index")
+                    handleSeekCommand(command, index)
                 }
                 else -> {
                     Timber.tag("MessageLayerHelper").d("Unknown message path: ${messageEvent.path}")
@@ -90,6 +98,19 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
             WearCommandEnum.NEXT -> playerConnection?.seekToNext()
             WearCommandEnum.PREVIOUS -> playerConnection?.seekToPrevious()
             WearCommandEnum.PLAY_PAUSE -> playerConnection?.player?.togglePlayPause()
+            else -> {
+                Timber.tag("MessageLayerHelper").d("Unknown command: $command")
+            }
+        }
+    }
+
+    private fun handleSeekCommand(command: WearCommandEnum, index: Int) {
+        Timber.tag("MessageLayerHelper").d("Executing $command command with index: $index")
+        when (command) {
+            WearCommandEnum.SEEK_TO -> {
+                playerConnection?.player?.seekToDefaultPosition(index)
+                playerConnection?.player?.playWhenReady = true
+            }
             else -> {
                 Timber.tag("MessageLayerHelper").d("Unknown command: $command")
             }

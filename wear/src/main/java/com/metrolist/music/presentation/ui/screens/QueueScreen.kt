@@ -134,7 +134,10 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                             passiveColor = passiveColor,
                             activeColor = activeColor,
                             artworkBitmap = artworkBitmaps[track.artworkUrl],
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            onClick = {
+                                viewModel.sendRequestSeekCommand(index)
+                            }
                         )
                     }
                 }

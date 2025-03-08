@@ -3,6 +3,7 @@ package com.metrolist.music.wear.enumerated
 enum class MessageLayerPathEnum (val path: String) {
     PLAYBACK_COMMAND("/playback_command"),
     REQUEST_STATE("/request_state"),
+    REQUEST_SEEK("/request_seek"),
     REQUEST_QUEUE("/request_queue");
 
     companion object {

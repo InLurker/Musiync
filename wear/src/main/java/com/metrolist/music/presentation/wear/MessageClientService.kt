@@ -33,12 +33,12 @@ class MessageClientService @Inject constructor(context: Context): MessageClient.
         sendMessage(MessageClientPathEnum.PLAYBACK_COMMAND.path, command.name.toByteArray())
     }
 
-    fun sendQueueEntriesRequest(indices: List<Int>) {
-        sendMessage(MessageClientPathEnum.REQUEST_QUEUE.path, indices.joinToString(",").toByteArray())
+    fun sendRequestSeekCommand(command: WearCommandEnum, index: Int) {
+        sendMessage(MessageClientPathEnum.REQUEST_SEEK.path, "${command.name}:${index}".toByteArray())
     }
 
-    fun sendCurrentStateRequest() {
-        sendMessage(MessageClientPathEnum.REQUEST_STATE.path, null)
+    fun sendQueueEntriesRequest(indices: List<Int>) {
+        sendMessage(MessageClientPathEnum.REQUEST_QUEUE.path, indices.joinToString(",").toByteArray())
     }
 
     fun sendMessage(path: String, payload: ByteArray?) {

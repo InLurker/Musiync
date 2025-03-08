@@ -5,5 +5,6 @@ enum class WearCommandEnum {
     NEXT,
     PREVIOUS,
     REQUEST_STATE,
+    SEEK_TO,
     REQUEST_QUEUE
 }

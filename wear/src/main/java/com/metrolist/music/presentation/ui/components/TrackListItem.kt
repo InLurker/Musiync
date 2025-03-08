@@ -2,6 +2,7 @@ package com.metrolist.music.presentation.ui.components
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,10 +37,12 @@ fun TrackListItem(
     passiveColor: Color,
     activeColor: Color,
     artworkBitmap: Bitmap?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     Row(
         modifier = modifier
+            .clickable(onClick = onClick)
             .clip(RoundedCornerShape(16.dp))
             .fillMaxWidth()
             .background(color = if (isPlaying) activeColor else passiveColor)

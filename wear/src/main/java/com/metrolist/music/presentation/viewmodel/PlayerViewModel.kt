@@ -55,6 +55,10 @@ class PlayerViewModel @Inject constructor(
         messageClientService.sendPlaybackCommand(command)
     }
 
+    fun sendRequestSeekCommand(index: Int) {
+        messageClientService.sendRequestSeekCommand(WearCommandEnum.SEEK_TO, index)
+    }
+
     fun updateAccentColor(bitmap: Bitmap?) {
         viewModelScope.launch {
             val dominantColor = bitmap?.extractThemeColor() ?: Color.Black
