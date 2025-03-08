@@ -5,9 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,17 +35,16 @@ fun TrackListItem(
     isPlaying: Boolean,
     passiveColor: Color,
     activeColor: Color,
-    artworkBitmap: Bitmap?
+    artworkBitmap: Bitmap?,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
-            .padding(vertical = 4.dp)
-            .padding(start = 4.dp, end = 8.dp)
-            .background(
-                color = if (isPlaying) activeColor else passiveColor
-            )
-            .fillMaxWidth()
+        modifier = modifier
             .clip(RoundedCornerShape(16.dp))
+            .fillMaxWidth()
+            .background(color = if (isPlaying) activeColor else passiveColor)
+            .padding(vertical = 8.dp)
+            .padding(horizontal = 8.dp)
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
@@ -54,10 +56,12 @@ fun TrackListItem(
                 .build(),
             contentDescription = "Album Artwork",
             modifier = Modifier
-                .padding(8.dp)
-                .size(32.dp)
+                .size(48.dp)
                 .clip(RoundedCornerShape(5.dp)),
             contentScale = ContentScale.Crop
+        )
+        Spacer(
+            modifier = Modifier.width(8.dp)
         )
         Column(
             horizontalAlignment = Alignment.Start,
@@ -81,10 +85,13 @@ fun TrackListItem(
                     append(it)
                 }
             }
+            Spacer(
+                modifier = Modifier.height(2.dp)
+            )
             albumArtistText.takeIf { it.isNotEmpty() }?.let {
                 Text(
                     text = albumArtistText,
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     maxLines = 1,
                     color = Color.White,
                     overflow = TextOverflow.Ellipsis

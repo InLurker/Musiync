@@ -48,7 +48,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     LaunchedEffect(musicState?.currentIndex) {
         val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
         displayedIndices.indexOf(currentIndex).takeIf { it != -1 }?.let {
-            lazyListState.scrollToItem(it)
+            lazyListState.animateScrollToItem(it, scrollOffset = 0)
         }
     }
 
@@ -88,12 +88,12 @@ fun QueueScreen(viewModel: PlayerViewModel) {
 
 
     val passiveColor = accentColor?.let {
-        lerp(Color.Black, it, 0.2f)
-    } ?: Color.Black
+        lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
+    } ?: Color.Black.copy(alpha = 0.7f)
     Log.d("InColumn", displayedIndices.joinToString())
     val activeColor = accentColor?.let {
-        lerp(Color.Black, it, 0.5f)
-    } ?: Color.Black
+        lerp(Color.Black, it, 0.6f).copy(alpha = 0.8f)
+    } ?: Color.Black.copy(alpha = 0.3f)
 
     LaunchedEffect(isLoadingNext, isLoadingPrevious) {
         if (isLoadingNext || isLoadingPrevious) {
@@ -133,7 +133,8 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                             isPlaying = index == musicState?.currentIndex,
                             passiveColor = passiveColor,
                             activeColor = activeColor,
-                            artworkBitmap = artworkBitmaps[track.artworkUrl]
+                            artworkBitmap = artworkBitmaps[track.artworkUrl],
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
                 }
