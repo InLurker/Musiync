@@ -80,7 +80,7 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                     val command = WearCommandEnum.valueOf(commandData[0])
                     val index = commandData[1].toInt()
 
-                    Timber.tag("MessageLayerHelper").d("Received submit index command: $command with index: $index")
+                    Timber.tag("MessageLayerHelper").d("Received request seek command: $command with index: $index")
                     handleSeekCommand(command, index)
                 }
                 else -> {
