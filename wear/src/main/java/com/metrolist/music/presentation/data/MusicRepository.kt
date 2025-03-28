@@ -49,22 +49,17 @@ class MusicRepository @Inject constructor(
     val artworks = MutableStateFlow<MutableMap<String, Bitmap?>>(mutableMapOf())
     val musicState = MutableStateFlow<MusicState?>(null)
     val accentColor = MutableStateFlow<Color?>(null)
-    val isFetching = MutableStateFlow(false)
     val displayedIndices = SnapshotStateList<Int>()
 
-    // Channels for queue management
     private val queueRequestChannel = Channel<QueueRequest>(Channel.BUFFERED)
     private val queueUpdateSignal = MutableSharedFlow<Unit>()
-    
-    // Thread safety
+
     private val mutex = Mutex()
-    private val pendingIndices = mutableSetOf<Int>()
-    
-    // Coroutine scopes
+    val pendingIndices = MutableStateFlow<MutableSet<Int>>(mutableSetOf())
+
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     init {
-        // Start the queue request processor
         startQueueRequestProcessor()
     }
     
@@ -79,16 +74,15 @@ class MusicRepository @Inject constructor(
     private suspend fun processQueueRequest(request: QueueRequest) {
         val indicesToFetch = (request.startIndex until request.endIndex)
             .filterNot { index -> 
-                queue.value.containsKey(index) || pendingIndices.contains(index)
+                queue.value.containsKey(index) || pendingIndices.value.contains(index)
             }
             
         if (indicesToFetch.isEmpty()) return
         
         mutex.withLock {
-            pendingIndices.addAll(indicesToFetch)
+            pendingIndices.value.addAll(indicesToFetch)
         }
-        
-        isFetching.value = true
+
         Log.d("MusicRepository", "Requesting queue indices: ${indicesToFetch.joinToString()}")
         messageClientService.sendQueueEntriesRequest(indicesToFetch)
     }
@@ -116,7 +110,7 @@ class MusicRepository @Inject constructor(
         
         repositoryScope.launch {
             mutex.withLock {
-                pendingIndices.clear()
+                pendingIndices.value.clear()
             }
             val range = calculateInitialPageRange(state.currentIndex, state.queueSize)
             requestQueueRange(range.first, range.second, RequestPriority.HIGH)
@@ -151,7 +145,7 @@ class MusicRepository @Inject constructor(
                 updateDisplayedIndices(range)
                 true
             }
-            pendingIndices.containsAll(range) -> true
+            pendingIndices.value.containsAll(range) -> true
             else -> {
                 repositoryScope.launch { queueRequestChannel.send(QueueRequest(startIndex, endIndex, priority)) }
                 false
@@ -169,7 +163,7 @@ class MusicRepository @Inject constructor(
         } finally {
             // Clear pending indices in case of timeout
             mutex.withLock {
-                pendingIndices.clear()
+                pendingIndices.value.clear()
             }
         }
     }
@@ -201,7 +195,7 @@ class MusicRepository @Inject constructor(
             if (trackDelta != null) {
                 updateDisplayedIndices(trackDelta.keys)
                 // Remove these indices from pending
-                pendingIndices.removeAll(trackDelta.keys)
+                pendingIndices.value.removeAll(trackDelta.keys)
             }
 
             // Fetch artwork
@@ -213,8 +207,6 @@ class MusicRepository @Inject constructor(
             repositoryScope.launch {
                 queueUpdateSignal.emit(Unit)
             }
-        }.invokeOnCompletion {
-            isFetching.value = false
         }
     }
 

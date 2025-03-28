@@ -35,7 +35,9 @@ class PlayerViewModel @Inject constructor(
     val musicQueue = musicRepository.queue
     val artworkBitmaps = musicRepository.artworks
     val displayedIndices = musicRepository.displayedIndices
-    val isFetching = musicRepository.isFetching
+    // derived from repository, true when pendingIndices is not empty
+    val isFetching = musicRepository.pendingIndices .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Lazily, false)
     
     // Derived state
     val currentTrack = musicState.combine(musicQueue) { state, queue ->
