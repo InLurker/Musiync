@@ -1,6 +1,5 @@
 package com.metrolist.music.presentation.ui.screens
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,11 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.Text
 import com.metrolist.music.presentation.ui.components.BlinkingDots
 import com.metrolist.music.presentation.ui.components.TrackListItem
@@ -30,6 +31,7 @@ import com.metrolist.music.presentation.viewmodel.PlayerViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -43,31 +45,61 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     val artworkBitmaps by viewModel.artworkBitmaps.collectAsState()
     val displayedIndices = viewModel.displayedIndices
     val isFetching by viewModel.isFetching.collectAsState()
+    val isInitialLoadComplete by viewModel.isInitialLoadComplete.collectAsState()
+
+    // Request initial state if needed
+    LaunchedEffect(Unit) {
+        if (musicState == null || musicQueue.isEmpty()) {
+            viewModel.fetchCurrentState()
+        }
+    }
 
     // UI loading state
     var isLoadingPrevious by remember { mutableStateOf(false) }
     var isLoadingNext by remember { mutableStateOf(false) }
-    
+
     // Scroll state for the ScalingLazyColumn
     val lazyListState = rememberScalingLazyListState()
-
-    // Auto-scroll to the current track when it changes
-    LaunchedEffect(musicState?.currentIndex) {
-        val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
-        
-        displayedIndices.indexOf(currentIndex).takeIf { it != -1 }?.let { indexPosition ->
-            lazyListState.animateScrollToItem(indexPosition, scrollOffset = 0)
-        }
-    }
 
     // Calculate UI colors based on accent color
     val passiveColor = accentColor?.let {
         lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
     } ?: Color.Black.copy(alpha = 0.7f)
-    
+
     val activeColor = accentColor?.let {
         lerp(Color.Black, it, 0.6f).copy(alpha = 0.8f)
     } ?: Color.Black.copy(alpha = 0.3f)
+
+    // Wait for initial load to complete and for current index to be in the list before scrolling
+    LaunchedEffect(musicState?.currentIndex, isInitialLoadComplete) {
+        if (!isInitialLoadComplete) return@LaunchedEffect
+
+        val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
+
+        // Wait for the current index to actually be in the list
+        snapshotFlow { displayedIndices.indexOf(currentIndex) }
+            .filter { it != -1 } // Only emit when the index is found
+            .debounce(150.milliseconds) // Allow for potential list updates
+            .collect { position ->
+                lazyListState.animateScrollToItem(position)
+            }
+    }
+
+    // Capture viewport and item dimensions for better layout understanding
+    val itemHeight = remember { mutableStateOf(0) }
+    val viewportHeight = remember { mutableStateOf(0) }
+
+    LaunchedEffect(lazyListState.layoutInfo) {
+        val layoutInfo = lazyListState.layoutInfo
+
+        if (layoutInfo.visibleItemsInfo.isNotEmpty() && itemHeight.value == 0) {
+            itemHeight.value = layoutInfo.visibleItemsInfo.first().size
+        }
+
+        if (viewportHeight.value == 0 && layoutInfo.viewportSize.height > 0) {
+            viewportHeight.value = layoutInfo.viewportSize.height
+        }
+    }
 
     // Load more tracks when scrolling near the edges
     LaunchedEffect(lazyListState) {
@@ -120,18 +152,28 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize()
     ) {
-        if (displayedIndices.isEmpty()) {
+        if (!isInitialLoadComplete) {
+            // Show loading indicator while initializing
+            CircularProgressIndicator()
+        } else if (displayedIndices.isEmpty()) {
+            // Show empty state when no tracks available
             Text(
                 text = "Queue is Empty",
                 color = Color.White
             )
         } else {
-            Log.d("QueueScreen", "Displayed indices: $displayedIndices")
+            // Show queue content
             ScalingLazyColumn(
                 state = lazyListState,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 contentPadding = PaddingValues(vertical = 32.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { coords ->
+                        if (viewportHeight.value == 0) {
+                            viewportHeight.value = coords.size.height
+                        }
+                    }
             ) {
                 items(displayedIndices) { index ->
                     musicQueue[index]?.let { track ->
