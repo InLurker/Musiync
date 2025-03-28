@@ -49,6 +49,8 @@ fun QueueScreen(viewModel: PlayerViewModel) {
 
     val lazyListState = rememberScalingLazyListState()
 
+    val isScrollingLocked = remember { mutableStateOf(true) }
+
     val passiveColor = accentColor?.let {
         lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
     } ?: Color.Black.copy(alpha = 0.7f)
@@ -58,12 +60,16 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     } ?: Color.Black.copy(alpha = 0.3f)
 
     LaunchedEffect(lazyListState) {
+        snapshotFlow { lazyListState.isScrollInProgress }
+            .collect { isScrolling ->
+                isScrollingLocked.value = isScrolling
+            }
         snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
             .debounce(300.milliseconds)
             .collect { visibleItems ->
                 if (musicState == null || musicQueue.isEmpty() || 
                     visibleItems.isEmpty() || displayedIndices.isEmpty() ||
-                    isFetching || isLoadingPrevious || isLoadingNext) {
+                    isFetching || isLoadingPrevious || isLoadingNext || isScrollingLocked.value) {
                     return@collect
                 }
                 
@@ -108,7 +114,9 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         snapshotFlow { displayedIndices.indexOf(currentIndex) }
             .debounce(200.milliseconds)  // Ensure list is stable before scrolling
             .collect { position ->
+                isScrollingLocked.value = true
                 lazyListState.animateScrollToItem(position)
+                isScrollingLocked.value = true
             }
     }
 
