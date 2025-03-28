@@ -32,6 +32,7 @@ class MusicRepository @Inject constructor(
     val artworks = MutableStateFlow<MutableMap<String, Bitmap?>>(mutableMapOf())
     val musicState = MutableStateFlow<MusicState?>(null)
     val accentColor = MutableStateFlow<Color?>(null)
+    val isFetching = MutableStateFlow(false)
     var displayedIndices = SnapshotStateList<Int>()
 
 
@@ -49,15 +50,13 @@ class MusicRepository @Inject constructor(
             artworks.value.clear()
             scope.launch {
                 val range = calculateInitialPageRange(state.currentIndex, state.queueSize)
-                // Fetch current track's data FIRST
-                if (!requestPaginatedQueue(state.currentIndex, state.currentIndex + 1)) {
+
+                if (!requestPaginatedQueue(range.first, range.second)) {
                     waitForQueueUpdate()
                 }
                 // Now update state and displayed indices
                 updateState(state)
                 appendToDisplayedIndices(range.first, range.second)
-                // Fetch surrounding tracks
-                requestPaginatedQueue(range.first, range.second)
             }
         } else {
             // Ensure current index is loaded before updating state
@@ -86,6 +85,7 @@ class MusicRepository @Inject constructor(
         val currentQueue = queue.value
         val desiredIndices = (startIndex until endSize).filterNot { index -> currentQueue.containsKey(index) }
         if (desiredIndices.isNotEmpty()) {
+            isFetching.value = true
             messageClientService.sendQueueEntriesRequest(desiredIndices)
             return false
         }
@@ -109,7 +109,7 @@ class MusicRepository @Inject constructor(
     }
 
     suspend fun updateQueue(
-        hash: String,
+        hash: Long,
         trackDelta: Map<Int, TrackInfo>?,
         artworkDelta: suspend () -> Map<String, Bitmap?>?
     ) {
@@ -131,6 +131,8 @@ class MusicRepository @Inject constructor(
                     artworks.update { it.apply { putAll(newArtworks) } }
                 }
             }
+        }.invokeOnCompletion {
+            isFetching.value = false
         }
     }
 
@@ -179,7 +181,7 @@ class MusicRepository @Inject constructor(
         val range = if (start <= end) start until end else end until start
         if (start >= end) {
             // If reversed, insert at the front in reverse order
-            displayedIndices.addAll(0, range.reversed().toList())
+            displayedIndices.addAll(0, range.toList())
         } else {
             // Normal case: append at the end
             displayedIndices += range

@@ -65,7 +65,7 @@ class DataClientService : WearableListenerService() {
     private fun processCurrentState(dataEvent: DataEvent) {
         val dataMap = DataMapItem.fromDataItem(dataEvent.dataItem).dataMap
         val musicState = MusicState(
-            dataMap.getString("queueHash").toString(),
+            dataMap.getLong("queueHash"),
             dataMap.getInt("queueSize"),
             dataMap.getInt("currentIndex"),
             dataMap.getBoolean("isPlaying")
@@ -74,7 +74,7 @@ class DataClientService : WearableListenerService() {
     }
 
     private suspend fun processQueueResponse(dataMap: DataMap) {
-        val hash = dataMap.getString("queueHash").toString()
+        val hash = dataMap.getLong("queueHash")
         Log.d("WearDataListenerService", "Received queue response with hash: $hash")
 
         val queue = dataMap.getDataMap("trackList")?.let { extractTrackInfoFromDataMap(it) }

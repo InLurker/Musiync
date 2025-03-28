@@ -60,6 +60,7 @@ class PlayerConnection(
         }
 
     val queueTitle = MutableStateFlow<String?>(null)
+    val cureentQueueHash = MutableStateFlow(System.currentTimeMillis())
     val queueWindows = MutableStateFlow<List<Timeline.Window>>(emptyList())
     val currentMediaItemIndex = MutableStateFlow(-1)
     val currentWindowIndex = MutableStateFlow(-1)
@@ -87,6 +88,7 @@ class PlayerConnection(
     }
 
     fun playQueue(queue: Queue) {
+        cureentQueueHash.value = System.currentTimeMillis()
         service.playQueue(queue)
     }
 
@@ -99,6 +101,7 @@ class PlayerConnection(
     fun addToQueue(item: MediaItem) = addToQueue(listOf(item))
 
     fun addToQueue(items: List<MediaItem>) {
+        cureentQueueHash.value = System.currentTimeMillis()
         service.addToQueue(items)
     }
 

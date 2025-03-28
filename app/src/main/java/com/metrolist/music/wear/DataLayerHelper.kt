@@ -8,8 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.Timeline
-import coil.annotation.ExperimentalCoilApi
-import coil.imageLoader
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.PutDataMapRequest
@@ -33,11 +31,9 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
-@OptIn(ExperimentalCoilApi::class)
 @Singleton
 class DataLayerHelper @Inject constructor(context: Context) {
 
@@ -57,13 +53,10 @@ class DataLayerHelper @Inject constructor(context: Context) {
 
     private val dataClient: DataClient = Wearable.getDataClient(context)
     private val scope = CoroutineScope(Dispatchers.IO)
-    private val commandListener = AtomicReference<(String) -> Unit>()
     @Inject
     lateinit var database: MusicDatabase
 
     lateinit var musicService: MusicService
-
-    private val coil = context.imageLoader
 
     fun initializeMusicService(musicService: MusicService) {
         this.musicService = musicService
@@ -74,13 +67,13 @@ class DataLayerHelper @Inject constructor(context: Context) {
             try {
                 val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
                     val queue = playerConnection?.queueWindows?.value
-                    dataMap.putString("queueHash", queue?.map { it.uid.hashCode()  }?.joinToString(",") ?: "")
+                    dataMap.putLong("queueHash", playerConnection?.cureentQueueHash?.value ?: 0)
                     dataMap.putInt("queueSize", queue?.size ?: 0)
                     dataMap.putInt("currentIndex", playerConnection?.currentWindowIndex?.value ?: 0)
                     dataMap.putBoolean("isPlaying", playerConnection?.isPlaying?.value ?: false)
                 }.asPutDataRequest()
                 val stringPayload = playerConnection?.let {
-                    "currentIndex=${it.currentWindowIndex.value},queueSize=${it.queueWindows.value.size},isPlaying=${it.isPlaying.value},queueHash=${it.queueWindows.hashCode()}"
+                    "currentIndex=${it.currentWindowIndex.value},queueSize=${it.queueWindows.value.size},isPlaying=${it.isPlaying.value},queueHash=${it.cureentQueueHash.value}"
                 } ?: "null playerConnection"
                 // Send data through Data Layer
                 dataClient.putDataItem(putDataRequest).addOnSuccessListener {
@@ -134,7 +127,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 }
             }
         }
-        return MusicQueue(queue.map { it.uid.hashCode() }.joinToString(","), trackList, artworkMap)
+        return MusicQueue(playerConnection?.cureentQueueHash?.value ?: 0, trackList, artworkMap)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {
@@ -157,7 +150,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                     isPlaying to mediaMetadata
                 }
                 .distinctUntilChanged() // Only emit if the values have changed
-                .debounce(2000)
+                .debounce(3000)
                 .collect {
                     sendCurrentState()
                 }

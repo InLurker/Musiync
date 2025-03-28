@@ -48,7 +48,7 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                         // Create a main DataMap request.
                         val request = PutDataMapRequest.create(DataLayerPathEnum.QUEUE_RESPONSE.path)
                         val dataMap = request.dataMap
-                        dataMap.putString("queueHash", queue.queueHash)
+                        dataMap.putLong("queueHash", queue.queueHash)
 
                         // Build a nested DataMap for the track list.
                         val tracksDataMap = DataMap()

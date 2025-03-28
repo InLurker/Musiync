@@ -3,6 +3,7 @@ package com.metrolist.music.presentation.ui.screens
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -29,6 +31,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -41,12 +44,14 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     val displayedIndices = viewModel.displayedIndices
     // Scroll state for the ScalingLazyColumn
     val lazyListState = rememberScalingLazyListState()
+    val isFetching by viewModel.isFetching.collectAsState()
 
     var isLoadingPrevious by remember { mutableStateOf(false) }
     var isLoadingNext by remember { mutableStateOf(false) }
     // Scroll to the current track when the music state changes
     LaunchedEffect(musicState?.currentIndex) {
         val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
+        // wait for the list to be populated
         displayedIndices.indexOf(currentIndex).takeIf { it != -1 }?.let {
             lazyListState.animateScrollToItem(it, scrollOffset = 0)
         }
@@ -56,29 +61,27 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
             .debounce(300.milliseconds) // Reduce debounce time for better responsiveness
             .collect { visibleItems ->
+                if (musicState == null || musicQueue.isEmpty()) return@collect
                 if (visibleItems.isEmpty() || displayedIndices.isEmpty()) return@collect
-
-                val firstVisibleItemIndex = visibleItems.first().index
-                val lastVisibleItemIndex = visibleItems.last().index
-
+                if (isFetching || isLoadingPrevious || isLoadingNext) return@collect
                 // Ensure displayedIndices has elements
                 val firstTrackIndex = displayedIndices.first()
                 val lastTrackIndex = displayedIndices.last()
+                val firstVisibleItemIndex = visibleItems.first().index
+                val lastVisibleItemIndex = visibleItems.last().index
+
 
                 val firstVisibleTrackIndex = displayedIndices.elementAt(firstVisibleItemIndex)
                 val lastVisibleTrackIndex = displayedIndices.elementAt(lastVisibleItemIndex)
 
-                if (firstVisibleTrackIndex <= firstTrackIndex + 3) {
-                    if (firstTrackIndex <= 0) { // If displayedIndices is already loaded at the beginning
-                        return@collect
-                    }
+                if (firstVisibleTrackIndex <= firstTrackIndex + 2) {
+                    if (firstTrackIndex <= 0) return@collect
                     isLoadingPrevious = true
                     viewModel.fetchPreviousTracksForScroll()
-                } else if (lastVisibleTrackIndex >= lastTrackIndex - 3) {
+                } else if (lastVisibleTrackIndex >= lastTrackIndex - 2) {
+                    if (lastTrackIndex >= (musicState!!.queueSize - 1)) return@collect
                     musicState?.queueSize?.let { queueSize ->
-                        if (lastTrackIndex >= queueSize - 1) { // If displayedIndices is already loaded at the end
-                            return@collect
-                        }
+                        if (lastTrackIndex >= queueSize - 1) return@collect
                     }
                     isLoadingNext = true
                     viewModel.fetchNextTracksForScroll()
@@ -97,7 +100,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
 
     LaunchedEffect(isLoadingNext, isLoadingPrevious) {
         if (isLoadingNext || isLoadingPrevious) {
-            delay(2000)
+            delay(3.seconds)
             isLoadingNext = false
             isLoadingPrevious = false
         }
@@ -124,6 +127,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
             ScalingLazyColumn(
                 state = lazyListState,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
+                contentPadding = PaddingValues(vertical = 32.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(displayedIndices) { index ->
@@ -149,6 +153,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 16.dp)
+                        .zIndex(1f)
                 )
             }
 
@@ -158,6 +163,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 16.dp)
+                        .zIndex(1f)
                 )
             }
         }

@@ -34,6 +34,7 @@ class PlayerViewModel @Inject constructor(
     val musicQueue = musicRepository.queue
     val artworkBitmaps = musicRepository.artworks
     var displayedIndices = musicRepository.displayedIndices
+    val isFetching = musicRepository.isFetching
     val currentTrack = musicState.combine(musicQueue) { state, queue ->
         state?.let { queue.get(it.currentIndex) }
     }
@@ -75,7 +76,7 @@ class PlayerViewModel @Inject constructor(
         val start =  max(0, firstDisplayed)
         val end = max(0, firstDisplayed - 8)
 
-        if (start <= end) {
+        if (end < start) {
             musicRepository.requestPaginatedQueue(end, start)
             musicRepository.appendToDisplayedIndices(start, end)
         }
