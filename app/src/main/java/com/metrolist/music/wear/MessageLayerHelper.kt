@@ -38,8 +38,8 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
         try {
             when (messageEvent.path) {
                 MessageLayerPathEnum.REQUEST_QUEUE.path -> {
-                    Timber.tag("MessageLayerHelper").d("Received request for queue")
                     val requestedIndices = String(messageEvent.data).split(",").map { it.toInt() }
+                    Timber.tag("MessageLayerHelper").d("Received request for queue indices: $requestedIndices")
                     dataLayerHelper.handleQueueRangeRequest(requestedIndices) { queue ->
                         if (queue == null || queue.trackList.isEmpty()) {
                             Timber.tag("MessageLayerHelper").d("Queue is empty")

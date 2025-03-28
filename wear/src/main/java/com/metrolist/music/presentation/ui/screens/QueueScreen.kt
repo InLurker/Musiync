@@ -42,76 +42,87 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     val accentColor by viewModel.accentColor.collectAsState()
     val artworkBitmaps by viewModel.artworkBitmaps.collectAsState()
     val displayedIndices = viewModel.displayedIndices
-    // Scroll state for the ScalingLazyColumn
-    val lazyListState = rememberScalingLazyListState()
     val isFetching by viewModel.isFetching.collectAsState()
 
+    // UI loading state
     var isLoadingPrevious by remember { mutableStateOf(false) }
     var isLoadingNext by remember { mutableStateOf(false) }
-    // Scroll to the current track when the music state changes
-    LaunchedEffect(musicState?.currentIndex) {
+    
+    // Scroll state for the ScalingLazyColumn
+    val lazyListState = rememberScalingLazyListState()
+
+    // Auto-scroll to the current track when it changes
+    LaunchedEffect(musicState?.currentIndex, displayedIndices.size) {
         val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
-        // wait for the list to be populated
-        displayedIndices.indexOf(currentIndex).takeIf { it != -1 }?.let {
-            lazyListState.animateScrollToItem(it, scrollOffset = 0)
+        
+        displayedIndices.indexOf(currentIndex).takeIf { it != -1 }?.let { indexPosition ->
+            lazyListState.animateScrollToItem(indexPosition, scrollOffset = 0)
         }
     }
 
+    // Load more tracks when scrolling near the edges
     LaunchedEffect(lazyListState) {
         snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
-            .debounce(300.milliseconds) // Reduce debounce time for better responsiveness
+            .debounce(300.milliseconds)
             .collect { visibleItems ->
-                if (musicState == null || musicQueue.isEmpty()) return@collect
-                if (visibleItems.isEmpty() || displayedIndices.isEmpty()) return@collect
-                if (isFetching || isLoadingPrevious || isLoadingNext) return@collect
-                // Ensure displayedIndices has elements
-                val firstTrackIndex = displayedIndices.first()
-                val lastTrackIndex = displayedIndices.last()
+                // Skip if we don't have enough data or we're already fetching
+                if (musicState == null || musicQueue.isEmpty() || 
+                    visibleItems.isEmpty() || displayedIndices.isEmpty() ||
+                    isFetching || isLoadingPrevious || isLoadingNext) {
+                    return@collect
+                }
+                
                 val firstVisibleItemIndex = visibleItems.first().index
                 val lastVisibleItemIndex = visibleItems.last().index
+                
+                // Safety check
+                if (firstVisibleItemIndex >= displayedIndices.size || 
+                    lastVisibleItemIndex >= displayedIndices.size) {
+                    return@collect
+                }
 
-
-                val firstVisibleTrackIndex = displayedIndices.elementAt(firstVisibleItemIndex)
-                val lastVisibleTrackIndex = displayedIndices.elementAt(lastVisibleItemIndex)
-
-                if (firstVisibleTrackIndex <= firstTrackIndex + 2) {
-                    if (firstTrackIndex <= 0) return@collect
+                // Fetch previous tracks when we're near the top
+                if (firstVisibleItemIndex <= 2) {
                     isLoadingPrevious = true
                     viewModel.fetchPreviousTracksForScroll()
-                } else if (lastVisibleTrackIndex >= lastTrackIndex - 2) {
-                    if (lastTrackIndex >= (musicState!!.queueSize - 1)) return@collect
-                    musicState?.queueSize?.let { queueSize ->
-                        if (lastTrackIndex >= queueSize - 1) return@collect
-                    }
+                } 
+                // Fetch next tracks when we're near the bottom
+                else if (lastVisibleItemIndex >= displayedIndices.size - 3) {
                     isLoadingNext = true
                     viewModel.fetchNextTracksForScroll()
                 }
             }
     }
 
-
+    // Calculate UI colors based on accent color
     val passiveColor = accentColor?.let {
         lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
     } ?: Color.Black.copy(alpha = 0.7f)
-    Log.d("InColumn", displayedIndices.joinToString())
+    
+    // Log for debugging - consider removing in production
+    if (displayedIndices.isNotEmpty()) {
+        Log.d("QueueScreen", "Displayed indices: ${displayedIndices.joinToString()}")
+    }
+    
     val activeColor = accentColor?.let {
         lerp(Color.Black, it, 0.6f).copy(alpha = 0.8f)
     } ?: Color.Black.copy(alpha = 0.3f)
 
+    // Reset loading states after delay or when displayedIndices changes
     LaunchedEffect(isLoadingNext, isLoadingPrevious) {
         if (isLoadingNext || isLoadingPrevious) {
-            delay(3.seconds)
+            delay(2.seconds)
             isLoadingNext = false
             isLoadingPrevious = false
         }
     }
 
-    LaunchedEffect(displayedIndices) {
+    LaunchedEffect(displayedIndices.size) {
         isLoadingNext = false
         isLoadingPrevious = false
     }
 
-    // Display the list
+    // Display empty state or queue
     if (displayedIndices.isEmpty()) {
         Box(
             contentAlignment = Alignment.Center,
@@ -147,7 +158,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                 }
             }
 
-            // Top loading indicator
+            // Loading indicators
             if (isLoadingPrevious) {
                 BlinkingDots(
                     modifier = Modifier
@@ -157,7 +168,6 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                 )
             }
 
-            // Bottom loading indicator
             if (isLoadingNext) {
                 BlinkingDots(
                     modifier = Modifier

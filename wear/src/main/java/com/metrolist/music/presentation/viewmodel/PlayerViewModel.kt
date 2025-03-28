@@ -20,7 +20,6 @@ import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
 
-
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModel @Inject constructor(
@@ -28,17 +27,17 @@ class PlayerViewModel @Inject constructor(
     private val messageClientService: MessageClientService
 ) : ViewModel() {
 
-    // Make sure the object changes when the current track changes
+    // Expose UI state from repository
     val musicState = musicRepository.musicState
     val accentColor = musicRepository.accentColor
     val musicQueue = musicRepository.queue
     val artworkBitmaps = musicRepository.artworks
-    var displayedIndices = musicRepository.displayedIndices
+    val displayedIndices = musicRepository.displayedIndices
     val isFetching = musicRepository.isFetching
+    
     val currentTrack = musicState.combine(musicQueue) { state, queue ->
-        state?.let { queue.get(it.currentIndex) }
-    }
-    .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        state?.let { queue[it.currentIndex] }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val currentArtwork = currentTrack.flatMapLatest { track ->
         track?.artworkUrl.let { url ->
@@ -47,6 +46,11 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    init {
+        // Request initial state when ViewModel is created
+        fetchCurrentState()
+    }
 
     fun fetchCurrentState() {
         messageClientService.sendPlaybackCommand(WearCommandEnum.REQUEST_STATE)
@@ -71,25 +75,39 @@ class PlayerViewModel @Inject constructor(
         musicRepository.artworks.value[url] = bitmap
     }
 
+    /**
+     * Fetches previous tracks when scrolling up in the UI.
+     * This allows loading arbitrary sections of the queue without requiring all previous tracks.
+     */
     fun fetchPreviousTracksForScroll() {
         val firstDisplayed = displayedIndices.firstOrNull() ?: return
-        val start =  max(0, firstDisplayed)
-        val end = max(0, firstDisplayed - 8)
-
-        if (end < start) {
-            musicRepository.requestPaginatedQueue(end, start)
-            musicRepository.appendToDisplayedIndices(start, end)
+        if (firstDisplayed <= 0) return
+        
+        // Load a page of tracks before the current displayed range
+        val start = max(0, firstDisplayed - 7)
+        val end = firstDisplayed
+        
+        if (start < end) {
+            musicRepository.requestPaginatedQueue(start, end)
         }
     }
 
+    /**
+     * Fetches next tracks when scrolling down in the UI.
+     * This allows loading arbitrary sections of the queue without requiring all tracks in between.
+     */
     fun fetchNextTracksForScroll() {
         val lastDisplayed = displayedIndices.lastOrNull() ?: return
+        val queueSize = musicState.value?.queueSize ?: return
+        
+        if (lastDisplayed >= queueSize - 1) return
+        
+        // Load a page of tracks after the current displayed range
         val start = lastDisplayed + 1
-        val end = min(musicState.value?.queueSize ?: return, lastDisplayed + 8)
-
-        if (start <= end) {
+        val end = min(queueSize, start + 7)
+        
+        if (start < end) {
             musicRepository.requestPaginatedQueue(start, end)
-            musicRepository.appendToDisplayedIndices(start, end)
         }
     }
 }

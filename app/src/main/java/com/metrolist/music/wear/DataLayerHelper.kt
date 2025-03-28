@@ -22,12 +22,16 @@ import com.metrolist.music.wear.model.MusicQueue
 import com.metrolist.music.wear.model.TrackInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -53,6 +57,9 @@ class DataLayerHelper @Inject constructor(context: Context) {
 
     private val dataClient: DataClient = Wearable.getDataClient(context)
     private val scope = CoroutineScope(Dispatchers.IO)
+    private var previousHash: Long? = null
+    private val sendStateMutex = Mutex()
+    private var pendingSendRequest = false
     @Inject
     lateinit var database: MusicDatabase
 
@@ -64,25 +71,29 @@ class DataLayerHelper @Inject constructor(context: Context) {
 
     fun sendCurrentState() {
         scope.launch {
-            try {
-                val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
-                    val queue = playerConnection?.queueWindows?.value
-                    dataMap.putLong("queueHash", playerConnection?.cureentQueueHash?.value ?: 0)
-                    dataMap.putInt("queueSize", queue?.size ?: 0)
-                    dataMap.putInt("currentIndex", playerConnection?.currentWindowIndex?.value ?: 0)
-                    dataMap.putBoolean("isPlaying", playerConnection?.isPlaying?.value ?: false)
-                }.asPutDataRequest()
-                val stringPayload = playerConnection?.let {
-                    "currentIndex=${it.currentWindowIndex.value},queueSize=${it.queueWindows.value.size},isPlaying=${it.isPlaying.value},queueHash=${it.cureentQueueHash.value}"
-                } ?: "null playerConnection"
-                // Send data through Data Layer
-                dataClient.putDataItem(putDataRequest).addOnSuccessListener {
-                    Timber.tag("DataLayerHelper").d("Current state sent via Data Layer: ${stringPayload}")
-                }.addOnFailureListener { e ->
-                    Timber.tag("DataLayerHelper").e(e, "Failed to send current state via Data Layer")
+            sendStateMutex.withLock {
+                if (pendingSendRequest) return@launch
+                pendingSendRequest = true
+                delay(500) // Debounce to avoid redundant calls
+                pendingSendRequest = false
+
+                try {
+                    val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
+                        val queue = playerConnection?.queueWindows?.value
+                        dataMap.putLong("queueHash", playerConnection?.cureentQueueHash?.value ?: 0)
+                        dataMap.putInt("queueSize", queue?.size ?: 0)
+                        dataMap.putInt("currentIndex", playerConnection?.currentWindowIndex?.value ?: 0)
+                        dataMap.putBoolean("isPlaying", playerConnection?.isPlaying?.value ?: false)
+                    }.asPutDataRequest()
+
+                    dataClient.putDataItem(putDataRequest).addOnSuccessListener {
+                        Timber.tag("DataLayerHelper").d("Current state sent via Data Layer")
+                    }.addOnFailureListener { e ->
+                        Timber.tag("DataLayerHelper").e(e, "Failed to send current state via Data Layer")
+                    }
+                } catch (e: Exception) {
+                    Timber.tag("DataLayerHelper").e(e, "Failed to send current state, e: $e")
                 }
-            } catch (e: Exception) {
-                Timber.tag("DataLayerHelper").e(e, "Failed to send current state")
             }
         }
     }
@@ -138,19 +149,28 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
     }
 
-    @OptIn(FlowPreview::class)
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     private fun startObservingCurrentWindowIndex() {
         currentWindowIndexJob?.cancel()
         currentWindowIndexJob = scope.launch {
             playerConnection?.let { connection ->
                 combine(
                     connection.isPlaying,
-                    connection.mediaMetadata
-                ) { isPlaying, mediaMetadata ->
-                    isPlaying to mediaMetadata
+                    connection.mediaMetadata,
+                    connection.cureentQueueHash
+                ) { isPlaying, mediaMetadata, queueHash ->
+                    Triple(isPlaying, mediaMetadata, queueHash)
                 }
-                .distinctUntilChanged() // Only emit if the values have changed
-                .debounce(3000)
+                .distinctUntilChanged()
+                .transformLatest { (_, _, queueHash) ->
+                    sendStateMutex.withLock {
+                        if (queueHash != previousHash) {
+                            previousHash = queueHash
+                            delay(3000L) // Debounce for 3 seconds
+                        }
+                        emit(Unit) // Signal to send the state
+                    }
+                }
                 .collect {
                     sendCurrentState()
                 }
