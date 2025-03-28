@@ -52,13 +52,22 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     val lazyListState = rememberScalingLazyListState()
 
     // Auto-scroll to the current track when it changes
-    LaunchedEffect(musicState?.currentIndex, displayedIndices.size) {
+    LaunchedEffect(musicState?.currentIndex) {
         val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
         
         displayedIndices.indexOf(currentIndex).takeIf { it != -1 }?.let { indexPosition ->
             lazyListState.animateScrollToItem(indexPosition, scrollOffset = 0)
         }
     }
+
+    // Calculate UI colors based on accent color
+    val passiveColor = accentColor?.let {
+        lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
+    } ?: Color.Black.copy(alpha = 0.7f)
+    
+    val activeColor = accentColor?.let {
+        lerp(Color.Black, it, 0.6f).copy(alpha = 0.8f)
+    } ?: Color.Black.copy(alpha = 0.3f)
 
     // Load more tracks when scrolling near the edges
     LaunchedEffect(lazyListState) {
@@ -74,39 +83,24 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                 
                 val firstVisibleItemIndex = visibleItems.first().index
                 val lastVisibleItemIndex = visibleItems.last().index
-                
-                // Safety check
+
                 if (firstVisibleItemIndex >= displayedIndices.size || 
                     lastVisibleItemIndex >= displayedIndices.size) {
                     return@collect
                 }
 
-                // Fetch previous tracks when we're near the top
-                if (firstVisibleItemIndex <= 2) {
+                // perform pagination
+                if (firstVisibleItemIndex <= 2 && !isLoadingPrevious) {
                     isLoadingPrevious = true
                     viewModel.fetchPreviousTracksForScroll()
-                } 
-                // Fetch next tracks when we're near the bottom
-                else if (lastVisibleItemIndex >= displayedIndices.size - 3) {
+                }
+
+                else if (lastVisibleItemIndex >= displayedIndices.size - 3 && !isLoadingNext) {
                     isLoadingNext = true
                     viewModel.fetchNextTracksForScroll()
                 }
             }
     }
-
-    // Calculate UI colors based on accent color
-    val passiveColor = accentColor?.let {
-        lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
-    } ?: Color.Black.copy(alpha = 0.7f)
-    
-    // Log for debugging - consider removing in production
-    if (displayedIndices.isNotEmpty()) {
-        Log.d("QueueScreen", "Displayed indices: ${displayedIndices.joinToString()}")
-    }
-    
-    val activeColor = accentColor?.let {
-        lerp(Color.Black, it, 0.6f).copy(alpha = 0.8f)
-    } ?: Color.Black.copy(alpha = 0.3f)
 
     // Reset loading states after delay or when displayedIndices changes
     LaunchedEffect(isLoadingNext, isLoadingPrevious) {
@@ -122,19 +116,17 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         isLoadingPrevious = false
     }
 
-    // Display empty state or queue
-    if (displayedIndices.isEmpty()) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        if (displayedIndices.isEmpty()) {
             Text(
                 text = "Queue is Empty",
                 color = Color.White
             )
-        }
-    } else {
-        Box(modifier = Modifier.fillMaxSize()) {
+        } else {
+            Log.d("QueueScreen", "Displayed indices: $displayedIndices")
             ScalingLazyColumn(
                 state = lazyListState,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -150,9 +142,7 @@ fun QueueScreen(viewModel: PlayerViewModel) {
                             activeColor = activeColor,
                             artworkBitmap = artworkBitmaps[track.artworkUrl],
                             modifier = Modifier.padding(vertical = 4.dp),
-                            onClick = {
-                                viewModel.sendRequestSeekCommand(index)
-                            }
+                            onClick = { viewModel.sendRequestSeekCommand(index) }
                         )
                     }
                 }

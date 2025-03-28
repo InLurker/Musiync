@@ -9,9 +9,12 @@ import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.wear.MessageClientService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -24,6 +27,20 @@ import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * Data structure to represent a queue range request
+ */
+data class QueueRequest(
+    val startIndex: Int,
+    val endIndex: Int,
+    val priority: RequestPriority = RequestPriority.NORMAL
+)
+
+enum class RequestPriority {
+    HIGH, // For current track or range containing current track
+    NORMAL // For pagination requests
+}
+
 @Singleton
 class MusicRepository @Inject constructor(
     private val messageClientService: MessageClientService
@@ -33,12 +50,48 @@ class MusicRepository @Inject constructor(
     val musicState = MutableStateFlow<MusicState?>(null)
     val accentColor = MutableStateFlow<Color?>(null)
     val isFetching = MutableStateFlow(false)
-    var displayedIndices = SnapshotStateList<Int>()
+    val displayedIndices = SnapshotStateList<Int>()
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    // Channels for queue management
+    private val queueRequestChannel = Channel<QueueRequest>(Channel.BUFFERED)
     private val queueUpdateSignal = MutableSharedFlow<Unit>()
+    
+    // Thread safety
     private val mutex = Mutex()
-    private val pendingFetchRanges = mutableSetOf<Int>()
+    private val pendingIndices = mutableSetOf<Int>()
+    
+    // Coroutine scopes
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    
+    init {
+        // Start the queue request processor
+        startQueueRequestProcessor()
+    }
+    
+    private fun startQueueRequestProcessor() {
+        repositoryScope.launch {
+            queueRequestChannel.consumeAsFlow().collect { request ->
+                processQueueRequest(request)
+            }
+        }
+    }
+    
+    private suspend fun processQueueRequest(request: QueueRequest) {
+        val indicesToFetch = (request.startIndex until request.endIndex)
+            .filterNot { index -> 
+                queue.value.containsKey(index) || pendingIndices.contains(index)
+            }
+            
+        if (indicesToFetch.isEmpty()) return
+        
+        mutex.withLock {
+            pendingIndices.addAll(indicesToFetch)
+        }
+        
+        isFetching.value = true
+        Log.d("MusicRepository", "Requesting queue indices: ${indicesToFetch.joinToString()}")
+        messageClientService.sendQueueEntriesRequest(indicesToFetch)
+    }
 
     fun setAccentColor(color: Color) {
         accentColor.value = color
@@ -48,14 +101,10 @@ class MusicRepository @Inject constructor(
         if (shouldReInitializeQueue(state)) {
             resetQueue(state)
         } else {
-            // Ensure current index is loaded before updating state
-            scope.launch {
-                if (!queue.value.containsKey(state.currentIndex)) {
-                    requestPaginatedQueue(state.currentIndex, state.currentIndex + 1)
-                    waitForQueueUpdate()
-                }
-                updateState(state)
+            repositoryScope.launch {
                 handleQueuePagination(state.currentIndex)
+                waitForQueueUpdate()
+                updateState(state)
             }
         }
     }
@@ -64,11 +113,13 @@ class MusicRepository @Inject constructor(
         queue.value.clear()
         artworks.value.clear()
         displayedIndices.clear()
-        pendingFetchRanges.clear()
         
-        scope.launch {
+        repositoryScope.launch {
+            mutex.withLock {
+                pendingIndices.clear()
+            }
             val range = calculateInitialPageRange(state.currentIndex, state.queueSize)
-            requestPaginatedQueue(range.first, range.second)
+            requestQueueRange(range.first, range.second, RequestPriority.HIGH)
             waitForQueueUpdate()
             updateState(state)
         }
@@ -84,23 +135,28 @@ class MusicRepository @Inject constructor(
         }
     }
 
-    fun requestPaginatedQueue(startIndex: Int, endSize: Int): Boolean {
-        val currentQueue = queue.value
-        // Filter out indices that are already in the queue or pending fetch
-        val desiredIndices = (startIndex until endSize)
-            .filterNot { index -> 
-                currentQueue.containsKey(index) || pendingFetchRanges.contains(index)
+    /**
+     * Request a range of queue items
+     * @param startIndex First index to fetch (inclusive)
+     * @param endIndex Last index to fetch (exclusive)
+     * @param priority Priority of the request
+     */
+    fun requestQueueRange(startIndex: Int, endIndex: Int, priority: RequestPriority = RequestPriority.NORMAL): Boolean {
+        if (startIndex >= endIndex) return true
+
+        val range = (startIndex until endIndex).toSet()
+
+        return when {
+            queue.value.keys.containsAll(range) -> {
+                updateDisplayedIndices(range)
+                true
             }
-        
-        if (desiredIndices.isNotEmpty()) {
-            isFetching.value = true
-            // Mark these indices as pending fetch to avoid duplicate requests
-            pendingFetchRanges.addAll(desiredIndices)
-            Log.d("MusicRepository", "Requesting queue indices: ${desiredIndices.joinToString()}")
-            messageClientService.sendQueueEntriesRequest(desiredIndices)
-            return false
+            pendingIndices.containsAll(range) -> true
+            else -> {
+                repositoryScope.launch { queueRequestChannel.send(QueueRequest(startIndex, endIndex, priority)) }
+                false
+            }
         }
-        return true
     }
 
     private suspend fun waitForQueueUpdate() {
@@ -111,8 +167,10 @@ class MusicRepository @Inject constructor(
         } catch (e: TimeoutCancellationException) {
             Log.e("MusicRepository", "Queue update timed out")
         } finally {
-            // Clear pending fetches in case of timeout
-            pendingFetchRanges.clear()
+            // Clear pending indices in case of timeout
+            mutex.withLock {
+                pendingIndices.clear()
+            }
         }
     }
 
@@ -135,7 +193,6 @@ class MusicRepository @Inject constructor(
                 displayedIndices.clear()
             }
 
-            // Update the queue with new track data
             queue.update {
                 it.apply { trackDelta?.let { delta -> putAll(delta) } }
             }
@@ -143,16 +200,18 @@ class MusicRepository @Inject constructor(
             // Update displayed indices based on fetched data
             if (trackDelta != null) {
                 updateDisplayedIndices(trackDelta.keys)
-                // Remove these indices from pending fetch
-                pendingFetchRanges.removeAll(trackDelta.keys)
+                // Remove these indices from pending
+                pendingIndices.removeAll(trackDelta.keys)
             }
 
-            scope.launch {
+            // Fetch artwork
+            val newArtworks = artworkDelta()
+            if (newArtworks != null) {
+                artworks.update { it.apply { putAll(newArtworks) } }
+            }
+
+            repositoryScope.launch {
                 queueUpdateSignal.emit(Unit)
-                val newArtworks = artworkDelta()
-                if (newArtworks != null) {
-                    artworks.update { it.apply { putAll(newArtworks) } }
-                }
             }
         }.invokeOnCompletion {
             isFetching.value = false
@@ -160,39 +219,23 @@ class MusicRepository @Inject constructor(
     }
 
     private fun updateDisplayedIndices(fetchedIndices: Set<Int>) {
-        if (fetchedIndices.isEmpty()) return
-
         if (displayedIndices.isEmpty()) {
-            // If we don't have any displayed indices yet, add all fetched indices
             displayedIndices.addAll(fetchedIndices.sorted())
             return
         }
-        val newIndices = fetchedIndices.filter { it !in displayedIndices }
-        if (newIndices.isEmpty()) return
+        // Find where to insert the new indices
+        val newIndices = fetchedIndices.filter { it !in displayedIndices }.sorted()
 
-        // Check if the new indices are contiguous with current displayed ranges
-        val currentMin = displayedIndices.firstOrNull() ?: return
-        val currentMax = displayedIndices.lastOrNull() ?: return
-        
-        val minNewIndex = newIndices.firstOrNull() ?: return
-        val maxNewIndex = newIndices.lastOrNull() ?: return
-
-        if (minNewIndex > currentMax + 7 || maxNewIndex < currentMin - 7) {
-            // Option 2: Focus on new range if it's far from current display
-            val currentState = musicState.value
-            if (currentState != null && newIndices.contains(currentState.currentIndex)) {
-                // If the current playing index is in the new indices, reset display to focus on it
-                displayedIndices.clear()
-                displayedIndices.addAll(newIndices)
-                return
+        if (newIndices.first() < displayedIndices.first()) {
+            displayedIndices.addAll(0, newIndices)
+        } else if (newIndices.last() > displayedIndices.last()) {
+            displayedIndices.addAll(newIndices)
+        } else {
+            displayedIndices.apply {
+                clear()
+                addAll(fetchedIndices.sorted())
             }
         }
-        
-        // Otherwise, merge the indices maintaining order
-        val allIndices = displayedIndices.toList() + newIndices
-        displayedIndices.clear()
-        displayedIndices.addAll(allIndices.sorted().distinct())
-        
         Log.d("MusicRepository", "Updated displayedIndices: ${displayedIndices.joinToString()}")
     }
 
@@ -202,46 +245,41 @@ class MusicRepository @Inject constructor(
 
     private fun handleQueuePagination(currentIndex: Int) {
         if (displayedIndices.isEmpty()) {
-            resetDisplayedQueue(currentIndex)
-            return
-        }
-        
-        // Check if current index is in displayedIndices
-        if (!displayedIndices.contains(currentIndex)) {
-            // If we're jumping to a completely new position, reset the displayed queue
-            resetDisplayedQueue(currentIndex)
-            return
-        }
-        
-        val firstDisplayed = displayedIndices.first()
-        val lastDisplayed = displayedIndices.last()
-        
-        // If current index is near the edges of displayed indices, fetch more
-        if (currentIndex in (firstDisplayed..firstDisplayed + 1)) {
-            fetchPreviousTracks()
-        } else if (currentIndex in (lastDisplayed - 1)..lastDisplayed) {
-            fetchNextTracks()
+            reInitializeDisplayedQueue(currentIndex)
+        } else {
+            val firstDisplayed = displayedIndices.first()
+            val lastDisplayed = displayedIndices.last()
+            
+            // If current index is near the edges of displayed indices, fetch more
+            if (currentIndex in (firstDisplayed.rangeTo(firstDisplayed + 1))) {
+                fetchPreviousTracks(currentIndex)
+            } else if (currentIndex in (lastDisplayed - 1).rangeTo(lastDisplayed)) {
+                fetchNextTracks(currentIndex)
+            } else if (currentIndex < firstDisplayed || currentIndex > lastDisplayed) {
+                displayedIndices.clear()
+                reInitializeDisplayedQueue(currentIndex)
+            }
         }
     }
 
-    private fun fetchNextTracks() {
+    private fun fetchNextTracks(currentIndex: Int) {
         val start = (displayedIndices.lastOrNull()?.plus(1) ?: return)
-        val end = min(musicState.value?.queueSize ?: return, start + 7)
+        val end = min(musicState.value!!.queueSize, currentIndex + 8)
         if (start < end) {
-            requestPaginatedQueue(start, end)
+            requestQueueRange(start, end)
         }
     }
 
-    private fun fetchPreviousTracks() {
+    private fun fetchPreviousTracks(currentIndex: Int) {
         val end = (displayedIndices.firstOrNull() ?: return)
-        val start = max(0, end - 7)
+        val start = max(0, currentIndex - 7)
         if (start < end) {
-            requestPaginatedQueue(start, end)
+            requestQueueRange(start, end)
         }
     }
 
-    private fun resetDisplayedQueue(currentIndex: Int) {
+    private fun reInitializeDisplayedQueue(currentIndex: Int) {
         val range = calculateInitialPageRange(currentIndex, musicState.value?.queueSize ?: 0)
-        requestPaginatedQueue(range.first, range.second)
+        requestQueueRange(range.first, range.second, RequestPriority.HIGH)
     }
 }

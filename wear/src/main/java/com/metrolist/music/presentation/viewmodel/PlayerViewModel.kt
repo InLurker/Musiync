@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.metrolist.music.common.enumerated.WearCommandEnum
 import com.metrolist.music.presentation.data.MusicRepository
+import com.metrolist.music.presentation.data.RequestPriority
 import com.metrolist.music.presentation.helper.extractThemeColor
 import com.metrolist.music.presentation.wear.MessageClientService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
+
 
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -35,6 +37,7 @@ class PlayerViewModel @Inject constructor(
     val displayedIndices = musicRepository.displayedIndices
     val isFetching = musicRepository.isFetching
     
+    // Derived state
     val currentTrack = musicState.combine(musicQueue) { state, queue ->
         state?.let { queue[it.currentIndex] }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -47,21 +50,22 @@ class PlayerViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    init {
-        // Request initial state when ViewModel is created
-        fetchCurrentState()
-    }
-
     fun fetchCurrentState() {
-        messageClientService.sendPlaybackCommand(WearCommandEnum.REQUEST_STATE)
+        viewModelScope.launch {
+            messageClientService.sendPlaybackCommand(WearCommandEnum.REQUEST_STATE)
+        }
     }
 
     fun sendCommand(command: WearCommandEnum) {
-        messageClientService.sendPlaybackCommand(command)
+        viewModelScope.launch {
+            messageClientService.sendPlaybackCommand(command)
+        }
     }
 
     fun sendRequestSeekCommand(index: Int) {
-        messageClientService.sendRequestSeekCommand(WearCommandEnum.SEEK_TO, index)
+        viewModelScope.launch {
+            messageClientService.sendRequestSeekCommand(WearCommandEnum.SEEK_TO, index)
+        }
     }
 
     fun updateAccentColor(bitmap: Bitmap?) {
@@ -72,29 +76,26 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun appendBitmapToArtworkMap(url: String, bitmap: Bitmap) {
-        musicRepository.artworks.value[url] = bitmap
+        artworkBitmaps.value[url] = bitmap
     }
 
     /**
-     * Fetches previous tracks when scrolling up in the UI.
-     * This allows loading arbitrary sections of the queue without requiring all previous tracks.
+     * Request the previous page of tracks when scrolling up
      */
     fun fetchPreviousTracksForScroll() {
         val firstDisplayed = displayedIndices.firstOrNull() ?: return
         if (firstDisplayed <= 0) return
         
-        // Load a page of tracks before the current displayed range
-        val start = max(0, firstDisplayed - 7)
+        val start = max(0, firstDisplayed - 8)
         val end = firstDisplayed
         
         if (start < end) {
-            musicRepository.requestPaginatedQueue(start, end)
+            musicRepository.requestQueueRange(start, end, RequestPriority.NORMAL)
         }
     }
 
     /**
-     * Fetches next tracks when scrolling down in the UI.
-     * This allows loading arbitrary sections of the queue without requiring all tracks in between.
+     * Request the next page of tracks when scrolling down
      */
     fun fetchNextTracksForScroll() {
         val lastDisplayed = displayedIndices.lastOrNull() ?: return
@@ -102,12 +103,11 @@ class PlayerViewModel @Inject constructor(
         
         if (lastDisplayed >= queueSize - 1) return
         
-        // Load a page of tracks after the current displayed range
         val start = lastDisplayed + 1
-        val end = min(queueSize, start + 7)
+        val end = min(queueSize, lastDisplayed + 8)
         
         if (start < end) {
-            musicRepository.requestPaginatedQueue(start, end)
+            musicRepository.requestQueueRange(start, end, RequestPriority.NORMAL)
         }
     }
 }

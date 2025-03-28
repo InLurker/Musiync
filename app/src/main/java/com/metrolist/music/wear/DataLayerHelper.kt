@@ -28,7 +28,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -162,19 +161,21 @@ class DataLayerHelper @Inject constructor(context: Context) {
                     Triple(isPlaying, mediaMetadata, queueHash)
                 }
                 .distinctUntilChanged()
-                .transformLatest { (_, _, queueHash) ->
-                    sendStateMutex.withLock {
-                        if (queueHash != previousHash) {
-                            previousHash = queueHash
-                            delay(3000L) // Debounce for 3 seconds
-                        }
-                        emit(Unit) // Signal to send the state
-                    }
-                }
-                .collect {
-                    sendCurrentState()
+                .collect { (_, _, queueHash) ->
+                    sendStateWithDebounce(queueHash)
                 }
             }
+        }
+    }
+
+    private suspend fun sendStateWithDebounce(queueHash: Long) {
+        sendStateMutex.withLock {  // Lock at the beginning
+            if (queueHash != previousHash) {
+                previousHash = queueHash
+                Timber.tag("DataLayerHelper").d("Queue hash changed, waiting 3s")
+                delay(3000)  // Now delay works correctly in suspend function
+            }
+            sendCurrentState() // Lock is only released here
         }
     }
 
