@@ -1,6 +1,8 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    id("com.android.application")
+    kotlin("android")
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.ksp)
@@ -25,13 +27,13 @@ protobuf {
 
 android {
     namespace = "com.metrolist.music"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.metrolist.music"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 111
-        versionName = "11.0.0"
+        targetSdk = 36
+        versionCode = 122
+        versionName = "12.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -62,11 +64,39 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        jvmToolchain(21)
+
+        compilerOptions {
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    lint {
+        lintConfig = file("lint.xml")
+    }
+
+    androidResources {
+        generateLocaleConfig = true
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/CONTRIBUTORS.md"
+            excludes += "META-INF/LICENSE.md"
+        }
     }
 }
 
@@ -90,7 +120,6 @@ dependencies {
     implementation(libs.horologist.tiles)
     implementation(libs.androidx.watchface.complications.data.source.ktx)
     implementation(libs.androidx.palette.ktx)
-    implementation(project(":material-color-utilities"))
     implementation(libs.androidx.datastore.core.android)
     implementation(libs.androidx.material3.android)
     implementation(libs.androidx.compose.material3)

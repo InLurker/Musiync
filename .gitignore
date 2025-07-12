@@ -10,6 +10,10 @@
 # Java class files
 *.class
 
+# Keystore
+*.jks
+*.keystore
+
 # Generated files
 bin/
 gen/
@@ -88,3 +92,6 @@ lint/tmp/
 .kotlin
 app/release
 output-metadata.json
+
+# VS Code
+.vscode/
