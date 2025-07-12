@@ -79,7 +79,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 try {
                     val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
                         val queue = playerConnection?.queueWindows?.value
-                        dataMap.putLong("queueHash", playerConnection?.cureentQueueHash?.value ?: 0)
+                        dataMap.putLong("queueHash", playerConnection?.currentQueueHash?.value ?: 0)
                         dataMap.putInt("queueSize", queue?.size ?: 0)
                         dataMap.putInt("currentIndex", playerConnection?.currentWindowIndex?.value ?: 0)
                         dataMap.putBoolean("isPlaying", playerConnection?.isPlaying?.value ?: false)
@@ -137,7 +137,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 }
             }
         }
-        return MusicQueue(playerConnection?.cureentQueueHash?.value ?: 0, trackList, artworkMap)
+        return MusicQueue(playerConnection?.currentQueueHash?.value ?: 0, trackList, artworkMap)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {
@@ -156,7 +156,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
                 combine(
                     connection.isPlaying,
                     connection.mediaMetadata,
-                    connection.cureentQueueHash
+                    connection.currentQueueHash,
                 ) { isPlaying, mediaMetadata, queueHash ->
                     Triple(isPlaying, mediaMetadata, queueHash)
                 }

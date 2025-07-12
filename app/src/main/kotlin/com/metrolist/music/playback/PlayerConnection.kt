@@ -14,10 +14,10 @@ import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.extensions.currentMetadata
 import com.metrolist.music.extensions.getCurrentQueueIndex
 import com.metrolist.music.extensions.getQueueWindows
-import com.metrolist.music.wear.extensions.metadata
 import com.metrolist.music.playback.MusicService.MusicBinder
 import com.metrolist.music.playback.queues.Queue
 import com.metrolist.music.utils.reportException
+import com.metrolist.music.wear.extensions.metadata
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +60,7 @@ class PlayerConnection(
         }
 
     val queueTitle = MutableStateFlow<String?>(null)
-    val cureentQueueHash = MutableStateFlow(System.currentTimeMillis())
+    val currentQueueHash = MutableStateFlow(System.currentTimeMillis())
     val queueWindows = MutableStateFlow<List<Timeline.Window>>(emptyList())
     val currentMediaItemIndex = MutableStateFlow(-1)
     val currentWindowIndex = MutableStateFlow(-1)
@@ -89,7 +89,7 @@ class PlayerConnection(
     }
 
     fun playQueue(queue: Queue) {
-        cureentQueueHash.value = System.currentTimeMillis()
+        currentQueueHash.value = System.currentTimeMillis()
         service.playQueue(queue)
     }
 
@@ -102,7 +102,7 @@ class PlayerConnection(
     fun addToQueue(item: MediaItem) = addToQueue(listOf(item))
 
     fun addToQueue(items: List<MediaItem>) {
-        cureentQueueHash.value = System.currentTimeMillis()
+        currentQueueHash.value = System.currentTimeMillis()
         service.addToQueue(items)
     }
 
