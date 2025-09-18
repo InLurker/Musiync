@@ -2,13 +2,12 @@
 
 package com.metrolist.music.extensions
 
-import android.content.Context
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC
 import androidx.media3.common.MediaMetadata.PICTURE_TYPE_MEDIA
-import coil.annotation.ExperimentalCoilApi
-import coil.imageLoader
+import coil3.annotation.ExperimentalCoilApi
+import coil3.imageLoader
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.music.App
 import com.metrolist.music.db.entities.Song

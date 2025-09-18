@@ -7,9 +7,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.database.SQLException
-import android.media.AudioManager
 import android.media.AudioFocusRequest
-import android.media.AudioAttributes as LegacyAudioAttributes
+import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.net.ConnectivityManager
 import android.os.Binder
@@ -61,20 +60,20 @@ import com.metrolist.innertube.models.WatchEndpoint
 import com.metrolist.music.MainActivity
 import com.metrolist.music.R
 import com.metrolist.music.constants.AudioNormalizationKey
-import com.metrolist.music.constants.AudioQualityKey
 import com.metrolist.music.constants.AudioOffload
-import com.metrolist.music.constants.AutoLoadMoreKey
-import com.metrolist.music.constants.DisableLoadMoreWhenRepeatAllKey
+import com.metrolist.music.constants.AudioQualityKey
 import com.metrolist.music.constants.AutoDownloadOnLikeKey
+import com.metrolist.music.constants.AutoLoadMoreKey
 import com.metrolist.music.constants.AutoSkipNextOnErrorKey
+import com.metrolist.music.constants.DisableLoadMoreWhenRepeatAllKey
 import com.metrolist.music.constants.DiscordTokenKey
 import com.metrolist.music.constants.EnableDiscordRPCKey
 import com.metrolist.music.constants.HideExplicitKey
 import com.metrolist.music.constants.HistoryDuration
 import com.metrolist.music.constants.MediaSessionConstants.CommandToggleLike
-import com.metrolist.music.constants.MediaSessionConstants.CommandToggleStartRadio
 import com.metrolist.music.constants.MediaSessionConstants.CommandToggleRepeatMode
 import com.metrolist.music.constants.MediaSessionConstants.CommandToggleShuffle
+import com.metrolist.music.constants.MediaSessionConstants.CommandToggleStartRadio
 import com.metrolist.music.constants.PauseListenHistoryKey
 import com.metrolist.music.constants.PersistentQueueKey
 import com.metrolist.music.constants.PlayerVolumeKey
@@ -101,26 +100,22 @@ import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.extensions.toPersistQueue
 import com.metrolist.music.extensions.toQueue
 import com.metrolist.music.lyrics.LyricsHelper
-import com.metrolist.music.models.PersistQueue
 import com.metrolist.music.models.PersistPlayerState
-import com.metrolist.music.models.QueueData
-import com.metrolist.music.models.QueueType
+import com.metrolist.music.models.PersistQueue
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.playback.queues.EmptyQueue
-import com.metrolist.music.playback.queues.ListQueue
 import com.metrolist.music.playback.queues.Queue
 import com.metrolist.music.playback.queues.YouTubeQueue
 import com.metrolist.music.playback.queues.filterExplicit
 import com.metrolist.music.utils.CoilBitmapLoader
 import com.metrolist.music.utils.DiscordRPC
+import com.metrolist.music.utils.NetworkConnectivityObserver
 import com.metrolist.music.utils.SyncUtils
 import com.metrolist.music.utils.YTPlayerUtils
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.enumPreference
 import com.metrolist.music.utils.get
-import com.metrolist.music.utils.isInternetAvailable
 import com.metrolist.music.utils.reportException
-import com.metrolist.music.utils.NetworkConnectivityObserver
 import com.metrolist.music.wear.DataLayerHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -147,9 +142,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-import java.net.ConnectException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
 import java.time.LocalDateTime
 import javax.inject.Inject
 import kotlin.math.min
@@ -173,8 +165,6 @@ class MusicService :
 
     @Inject
     lateinit var mediaLibrarySessionCallback: MediaLibrarySessionCallback
-
-<<<<<<< HEAD:app/src/main/java/com/metrolist/music/playback/MusicService.kt
     @Inject
     lateinit var dataLayerHelper: DataLayerHelper
 

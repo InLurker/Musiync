@@ -10,9 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 
 @Composable
 fun AlbumArt(
@@ -22,7 +22,7 @@ fun AlbumArt(
     val painter = rememberAsyncImagePainter(model = artworkUrl)
     val isSquare by remember {
         derivedStateOf {
-            val state = painter.state
+            val state = painter.state.value
             if (state is AsyncImagePainter.State.Success) {
                 (state.painter.intrinsicSize.width / state.painter.intrinsicSize.height) > 0.9
             } else {

@@ -82,12 +82,9 @@ import com.metrolist.music.ui.menu.SongMenu
 import com.metrolist.music.utils.rememberEnumPreference
 import com.metrolist.music.utils.rememberPreference
 import com.metrolist.music.viewmodels.LibraryMixViewModel
-<<<<<<< HEAD:app/src/main/java/com/metrolist/music/ui/screens/library/LibraryMixScreen.kt
 import kotlinx.coroutines.launch
-=======
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
->>>>>>> refs/heads/upstream:app/src/main/kotlin/com/metrolist/music/ui/screens/library/LibraryMixScreen.kt
 import java.text.Collator
 import java.time.LocalDateTime
 import java.util.Locale
