@@ -75,6 +75,13 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                         }
                         dataMap.putDataMap("artworkAssets", artworkDataMap)
 
+                        Timber.tag("Wear-Queue").d(
+                            "Sending QUEUE_RESPONSE: tracks=%d assets=%d keys(sample)=%s",
+                            tracksDataMap.keySet().size,
+                            artworkDataMap.keySet().size,
+                            artworkDataMap.keySet().take(3).joinToString(limit = 3)
+                        )
+
                         dataLayerHelper.sendDataMap(request)
                     }
                 }

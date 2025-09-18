@@ -39,11 +39,11 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     ) {
         val passiveColor = accentColor?.let {
             lerp(Color.Black, it, 0.2f)
-        } ?: Color.White
+        } ?: Color.White.copy(alpha = 0.12f)
 
         val activeColor = accentColor?.let {
             lerp(Color.Black, it, 0.5f)
-        } ?: Color.White
+        } ?: Color.White.copy(alpha = 0.35f)
         itemsIndexed(sortedTracks) { index, track ->
             TrackListItem(
                 trackInfo = track,

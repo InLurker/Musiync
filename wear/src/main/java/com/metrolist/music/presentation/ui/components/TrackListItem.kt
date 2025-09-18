@@ -43,6 +43,10 @@ fun TrackListItem(
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(trackInfo.artworkUrl)
+                .apply {
+                    memoryCacheKey(trackInfo.artworkUrl)
+                    diskCacheKey(trackInfo.artworkUrl)
+                }
                 .crossfade(1000)
                 .bitmapConfig(Bitmap.Config.RGB_565)
                 .build(),

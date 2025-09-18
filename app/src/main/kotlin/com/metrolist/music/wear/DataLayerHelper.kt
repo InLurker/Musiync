@@ -10,6 +10,9 @@ import androidx.compose.runtime.setValue
 import androidx.media3.common.Timeline
 import coil3.annotation.ExperimentalCoilApi
 import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.toBitmap
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.PutDataMapRequest
@@ -30,6 +33,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -129,18 +133,46 @@ class DataLayerHelper @Inject constructor(context: Context) {
             trackList[originalIndex] = TrackInfo(title, artist, albumTitle, artworkUri)
 
             if (!artworkMap.containsKey(artworkUri)) {
-                mediaMetadata.artworkData?.let { data ->
-                    generateResizedAssetFromByteArray(400, data)?.let { asset ->
+                var source: String? = null
+                val embedded = mediaMetadata.artworkData
+                val useEmbedded = embedded != null && embedded.size >= 4096
+                if (useEmbedded) {
+                    generateResizedAssetFromByteArray(400, embedded!!)?.let { asset ->
                         artworkMap[artworkUri] = asset
+                        source = "embedded"
                     }
                 }
+                if (!useEmbedded) {
+                    if (artworkUri.isNotBlank()) {
+                        // Fallback to fetching by URL when embedded art is missing/small
+                        fetchAssetFromUrl(artworkUri, 400)?.let { asset ->
+                            artworkMap[artworkUri] = asset
+                            source = "url"
+                        }
+                    }
+                }
+                Timber.tag("Wear-Queue").d(
+                    "Artwork asset %s index=%d urlLen=%d blank=%s",
+                    source ?: "none",
+                    originalIndex,
+                    artworkUri.length,
+                    artworkUri.isBlank()
+                )
             }
         }
+        Timber.tag("Wear-Queue").d(
+            "Prepared queue window [%d,%d): tracks=%d assets=%d",
+            start,
+            end,
+            trackList.size,
+            artworkMap.size
+        )
         return MusicQueue(queue.hashCode(), trackList, artworkMap)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {
-        dataClient.putDataItem(putDataMapRequest.asPutDataRequest()).addOnSuccessListener {
+        val request = putDataMapRequest.asPutDataRequest().setUrgent()
+        dataClient.putDataItem(request).addOnSuccessListener {
             Timber.tag("DataLayerHelper").d("DataMap sent via Data Layer: ${putDataMapRequest.dataMap}")
         }.addOnFailureListener { e ->
             Timber.tag("DataLayerHelper").e(e, "Failed to send DataMap via Data Layer")
@@ -170,6 +202,26 @@ class DataLayerHelper @Inject constructor(context: Context) {
     private fun stopObservingCurrentWindowIndex() {
         currentWindowIndexJob?.cancel()
         currentWindowIndexJob = null
+    }
+
+    @SuppressLint("NewApi")
+    private fun fetchAssetFromUrl(url: String, targetSize: Int): Asset? = runBlocking {
+        return@runBlocking try {
+            val result = coil.execute(
+                ImageRequest.Builder(musicService)
+                    .data(url)
+                    .allowHardware(false)
+                    .build()
+            )
+            val bmp = result.image?.toBitmap() ?: return@runBlocking null
+            val resized = transformBitmap(bmp, targetSize)
+            ByteArrayOutputStream().use { stream ->
+                resized.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                Asset.createFromBytes(stream.toByteArray())
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
 
@@ -326,4 +378,3 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
     }
 }
-

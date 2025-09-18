@@ -41,6 +41,12 @@ fun MainScreen(
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(currentTrack?.artworkUrl)
+                    .apply {
+                        currentTrack?.artworkUrl?.let { url ->
+                            memoryCacheKey(url)
+                            diskCacheKey(url)
+                        }
+                    }
                     .crossfade(1000)
                     .bitmapConfig(Bitmap.Config.RGB_565)
                     .build(),

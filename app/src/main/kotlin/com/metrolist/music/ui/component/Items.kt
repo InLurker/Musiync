@@ -372,18 +372,12 @@ fun SongGridItem(
     },
     badges = badges,
     thumbnailContent = {
-        ItemThumbnail(
-            thumbnailUrl = song.song.thumbnailUrl,
-            isActive = isActive,
-            isPlaying = isPlaying,
-            shape = RoundedCornerShape(ThumbnailCornerRadius),
-            modifier = Modifier.size(GridThumbnailHeight)
+        AlbumArt(
+            artworkUrl = song.song.thumbnailUrl,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(ThumbnailCornerRadius))
         )
-        if (!isActive) {
-            OverlayPlayButton(
-                visible = true
-            )
-        }
     },
     fillMaxWidth = fillMaxWidth,
     modifier = modifier

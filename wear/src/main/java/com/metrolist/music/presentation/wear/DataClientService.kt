@@ -80,6 +80,12 @@ class DataClientService : WearableListenerService() {
     private suspend fun processQueueResponse(dataMap: DataMap) {
         val hash = dataMap.getInt("queueHash")
         Log.d("WearDataListenerService", "Received queue response with hash: $hash")
+        val tracks = dataMap.getDataMap("trackList")
+        val arts = dataMap.getDataMap("artworkAssets")
+        Log.d(
+            "WearDataListenerService",
+            "QUEUE_RESPONSE sizes tracks=${tracks?.keySet()?.size ?: 0} assets=${arts?.keySet()?.size ?: 0}"
+        )
 
         val queue = dataMap.getDataMap("trackList")?.let { extractTrackInfoFromDataMap(it) }
         musicRepository.updateQueue(hash, queue)
@@ -106,6 +112,7 @@ class DataClientService : WearableListenerService() {
         context: Context
     ) {
         for (key in artworkDataMap.keySet()) {
+            Log.d("WearDataListenerService", "Caching artwork key(len)=${key.length}")
             artworkDataMap.getAsset(key)?.cacheInCoil(context, dataClient, key)
         }
     }
