@@ -1,7 +1,6 @@
 package com.metrolist.music.presentation.ui.screens
 
 import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -13,11 +12,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.HorizontalPagerScaffold
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.bitmapConfig
+import coil3.request.crossfade
+import coil3.toBitmap
 import com.metrolist.music.presentation.theme.MetrolistTheme
 import com.metrolist.music.presentation.viewmodel.PlayerViewModel
 
@@ -26,7 +28,7 @@ import com.metrolist.music.presentation.viewmodel.PlayerViewModel
 fun MainScreen(
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val pagerState = rememberPagerState { 2 }
+    val pagerState = rememberPagerState { 3 }
 
     val currentTrack by viewModel.currentTrack.collectAsState()
 
@@ -43,10 +45,8 @@ fun MainScreen(
                     .bitmapConfig(Bitmap.Config.RGB_565)
                     .build(),
                 onSuccess = { result ->
-                    val bitmapDrawable = result.result.drawable
-                    if (bitmapDrawable is BitmapDrawable) {
-                        viewModel.updateAccentColor(bitmapDrawable.bitmap)
-                    }
+                    val image = result.result.image
+                    viewModel.updateAccentColor(image.toBitmap())
                 },
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -62,6 +62,7 @@ fun MainScreen(
                 when (page) {
                     0 -> PlayerScreen(viewModel)
                     1 -> QueueScreen(viewModel)
+                    2 -> StatusScreen()
                 }
             }
         }

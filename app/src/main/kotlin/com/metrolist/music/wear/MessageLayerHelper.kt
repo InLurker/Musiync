@@ -26,6 +26,8 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
 
     var playerConnection by mutableStateOf<PlayerConnection?>(null)
     private val messageClient: MessageClient = Wearable.getMessageClient(context)
+    private val nodeClient = Wearable.getNodeClient(context)
+    val lastHeartbeatAt = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
     private val commandListener = AtomicReference<(WearCommandEnum) -> Unit>()
 
     init {
@@ -37,6 +39,15 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
         Timber.tag("MessageLayerHelper").d("Received message with path: ${messageEvent.path}")
         try {
             when (messageEvent.path) {
+                MessageLayerPathEnum.HEARTBEAT.path -> {
+                    val payload = messageEvent.data?.toString(Charsets.UTF_8)
+                    if (payload == "ping") {
+                        // Respond to watch with pong
+                        messageClient.sendMessage(messageEvent.sourceNodeId, MessageLayerPathEnum.HEARTBEAT.path, "pong".toByteArray())
+                    } else if (payload == "pong") {
+                        lastHeartbeatAt.value = System.currentTimeMillis()
+                    }
+                }
                 MessageLayerPathEnum.REQUEST_QUEUE.path -> {
                     Timber.tag("MessageLayerHelper").d("Received request for queue")
                     val (start, end) = String(messageEvent.data).split(",").map { it.toInt() }
@@ -95,5 +106,31 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
             }
         }
     }
-}
 
+    fun sendHeartbeatPing() {
+        nodeClient.connectedNodes
+            .addOnSuccessListener { nodes ->
+                if (nodes.isEmpty()) {
+                    Timber.tag("MessageLayerHelper").w("No connected nodes. Cannot send heartbeat")
+                }
+                nodes.forEach { node ->
+                    messageClient.sendMessage(node.id, MessageLayerPathEnum.HEARTBEAT.path, "ping".toByteArray())
+                        .addOnSuccessListener {
+                            Timber.tag("MessageLayerHelper").d("Heartbeat sent to ${node.displayName}(${node.id})")
+                        }
+                        .addOnFailureListener { e ->
+                            Timber.tag("MessageLayerHelper").e(e, "Failed to send heartbeat to ${node.displayName}(${node.id})")
+                        }
+                }
+            }
+            .addOnFailureListener { e ->
+                Timber.tag("MessageLayerHelper").e(e, "Failed to query connected nodes")
+            }
+    }
+
+    fun fetchConnectedNodes(onResult: (Int) -> Unit) {
+        nodeClient.connectedNodes.addOnSuccessListener { nodes ->
+            onResult(nodes.size)
+        }.addOnFailureListener { _ -> onResult(0) }
+    }
+}

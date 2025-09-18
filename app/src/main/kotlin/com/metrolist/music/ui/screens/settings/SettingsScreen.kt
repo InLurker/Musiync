@@ -130,6 +130,13 @@ fun SettingsScreen(
         Material3SettingsGroup(
             title = stringResource(R.string.settings_section_system),
             items = buildList {
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.link),
+                        title = { Text(stringResource(R.string.wear_os_integration)) },
+                        onClick = { navController.navigate("settings/wear") }
+                    )
+                )
                 if (isAndroid12OrLater) {
                     add(
                         Material3SettingsItem(

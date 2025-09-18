@@ -6,9 +6,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
 import androidx.palette.graphics.Palette
-import coil.ImageLoader
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import coil3.ImageLoader
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient

@@ -7,11 +7,13 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.HorizontalPagerScaffold
 import androidx.wear.tooling.preview.devices.WearDevices
+import androidx.wear.compose.foundation.LocalReduceMotion
 import com.metrolist.music.presentation.ui.screens.MainScreen
 import com.metrolist.music.presentation.ui.screens.PlayerScreen
 import com.metrolist.music.presentation.ui.screens.QueueScreen

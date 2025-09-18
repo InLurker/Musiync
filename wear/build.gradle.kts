@@ -25,14 +25,35 @@ protobuf {
 
 android {
     namespace = "com.metrolist.music"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.metrolist.music"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 111
-        versionName = "11.0.0"
+        targetSdk = 36
+        versionCode = 112
+        versionName = "11.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("persistentDebug") {
+            storeFile = file("persistent-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        create("release") {
+            storeFile = file("keystore/release.keystore")
+            storePassword = System.getenv("STORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storePassword = "android"
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+        }
     }
     buildTypes {
         release {
@@ -46,24 +67,17 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
-        }
-    }
-    signingConfigs {
-        getByName("debug") {
-            if (System.getenv("MUSIC_DEBUG_SIGNING_STORE_PASSWORD") != null) {
-                storeFile = file(System.getenv("MUSIC_DEBUG_KEYSTORE_FILE"))
-                storePassword = System.getenv("MUSIC_DEBUG_SIGNING_STORE_PASSWORD")
-                keyAlias = "debug"
-                keyPassword = System.getenv("MUSIC_DEBUG_SIGNING_KEY_PASSWORD")
+            isDebuggable = true
+            signingConfig = if (System.getenv("GITHUB_EVENT_NAME") == "pull_request") {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("persistentDebug")
             }
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures {
         compose = true

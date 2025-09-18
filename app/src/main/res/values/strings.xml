@@ -340,4 +340,10 @@
     <string name="new_version_available">New version available</string>
     <string name="translation_models">Translation Models</string>
     <string name="clear_translation_models">Clear translation models</string>
+
+    <!-- Wear OS -->
+    <string name="wear_os_integration">Wear OS</string>
+    <string name="wear_connected_devices">Connected devices</string>
+    <string name="wear_test_connection">Test connection</string>
+    <string name="wear_last_heartbeat">Last heartbeat: %1$s</string>
 </resources>
