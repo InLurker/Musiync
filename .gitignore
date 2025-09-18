@@ -88,3 +88,12 @@ lint/tmp/
 .kotlin
 app/release
 output-metadata.json
+
+# VS Code
+.vscode/
+
+# Binary files and core dumps
+core
+core.*
+*.so
+*.bin

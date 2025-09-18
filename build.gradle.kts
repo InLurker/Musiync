@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 plugins {
     alias(libs.plugins.hilt) apply(false)
     alias(libs.plugins.kotlin.ksp) apply(false)
@@ -22,7 +20,7 @@ buildscript {
     }
 }
 
-tasks.register<Delete>("Clean") {
+tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
 
