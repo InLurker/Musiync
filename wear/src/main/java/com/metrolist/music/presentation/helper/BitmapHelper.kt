@@ -12,7 +12,6 @@ import coil.request.ImageRequest
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
-import com.google.material.color.score.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -50,6 +49,6 @@ fun Bitmap.extractThemeColor(): Color {
             .generate()
             .swatches
             .associate { it.rgb to it.population }
-    val rankedColors = Score.score(colorsToPopulation)
-    return Color(rankedColors.first())
+    val best = colorsToPopulation.maxByOrNull { it.value }?.key ?: 0xFF000000.toInt()
+    return Color(best)
 }

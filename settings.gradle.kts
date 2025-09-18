@@ -30,7 +30,6 @@ include(":innertube")
 include(":kugou")
 include(":lrclib")
 include(":kizzy")
-include(":material-color-utilities")
 include(":wear")
 
 // Use a local copy of NewPipe Extractor by uncommenting the lines below.

@@ -90,7 +90,7 @@ dependencies {
     implementation(libs.horologist.tiles)
     implementation(libs.androidx.watchface.complications.data.source.ktx)
     implementation(libs.androidx.palette.ktx)
-    implementation(project(":material-color-utilities"))
+    // Replaced internal color utilities with simple heuristic; remove module dependency
     implementation(libs.androidx.datastore.core.android)
     implementation(libs.androidx.material3.android)
     implementation(libs.androidx.compose.material3)
