@@ -35,8 +35,8 @@ fun AlbumArt(
         modifier = modifier
     ) {
         if (!isSquare) {
-            AsyncImage(
-                model = artworkUrl,
+            ThumbnailImage(
+                url = artworkUrl,
                 contentDescription = null,
                 contentScale = ContentScale.FillBounds,
                 modifier = Modifier
@@ -52,8 +52,8 @@ fun AlbumArt(
         }
 
         // Main thumbnail
-        AsyncImage(
-            model = artworkUrl,
+        ThumbnailImage(
+            url = artworkUrl,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier

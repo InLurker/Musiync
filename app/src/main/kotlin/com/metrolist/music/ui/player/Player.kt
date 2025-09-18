@@ -134,6 +134,7 @@ import com.metrolist.music.ui.component.LocalBottomSheetPageState
 import com.metrolist.music.ui.component.LocalMenuState
 import com.metrolist.music.ui.component.PlayerSliderTrack
 import com.metrolist.music.ui.component.ResizableIconButton
+import com.metrolist.music.ui.component.ThumbnailImage
 import com.metrolist.music.ui.component.rememberBottomSheetState
 import com.metrolist.music.ui.menu.PlayerMenu
 import com.metrolist.music.ui.screens.settings.DarkMode
@@ -1098,8 +1099,8 @@ fun BottomSheetPlayer(
                 }
             ) { mediaMetadata ->
                 if (playerBackground == PlayerBackgroundStyle.BLUR) {
-                    AsyncImage(
-                        model = mediaMetadata?.thumbnailUrl,
+                    ThumbnailImage(
+                        url = mediaMetadata?.thumbnailUrl,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds,
                         modifier = Modifier

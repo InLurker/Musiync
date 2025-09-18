@@ -3,13 +3,13 @@ package com.metrolist.music.presentation.helper
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.palette.graphics.Palette
+import coil3.asImage
 import coil3.imageLoader
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
+import coil3.memory.MemoryCache
 import com.google.android.gms.tasks.Tasks
-import android.util.Log
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
 import kotlinx.coroutines.Dispatchers
@@ -26,15 +26,12 @@ suspend fun Asset.cacheInCoil(context: Context, dataClient: DataClient, key: Str
                 val bitmap =  BitmapFactory.decodeStream(inputStream, null, options) ?: return@withContext
                 Log.d("WearCache", "Decoded asset for key(len)=${key.length} size=${bitmap.width}x${bitmap.height}")
                 val imageLoader = context.imageLoader
-                val request = ImageRequest.Builder(context)
-                    .data(bitmap) // Use the bitmap as data
-                    .memoryCacheKey(key) // Unique cache key based on artwork URL
-                    .diskCacheKey(key) // Unique key for disk caching
-                    .diskCachePolicy(CachePolicy.ENABLED) // Enable disk caching
-                    .build()
-
-                imageLoader.enqueue(request) // Store in Coil cache
-                Log.d("WearCache", "Enqueued cache write for key(len)=${key.length}")
+                // Populate memory cache directly with the decoded bitmap under the URL key
+                imageLoader.memoryCache?.set(
+                    MemoryCache.Key(key),
+                    MemoryCache.Value(bitmap.asImage())
+                )
+                Log.d("WearCache", "Stored bitmap in memory cache for key(len)=${key.length}")
             }
         } catch (e: Exception) {
             Log.e("WearCache", "Failed caching asset for key", e)

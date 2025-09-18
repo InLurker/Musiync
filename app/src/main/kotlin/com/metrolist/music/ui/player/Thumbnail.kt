@@ -76,6 +76,7 @@ import com.metrolist.music.constants.SeekExtraSeconds
 import com.metrolist.music.constants.SwipeThumbnailKey
 import com.metrolist.music.constants.ThumbnailCornerRadius
 import com.metrolist.music.constants.HidePlayerThumbnailKey
+import com.metrolist.music.ui.component.ThumbnailImage
 import com.metrolist.music.utils.rememberEnumPreference
 import com.metrolist.music.utils.rememberPreference
 import kotlinx.coroutines.delay
@@ -352,13 +353,8 @@ fun Thumbnail(
                                         }
                                     } else {
                                         // Blurred background
-                                        AsyncImage(
-                                            model = coil3.request.ImageRequest.Builder(LocalContext.current)
-                                                .data(item.mediaMetadata.artworkUri?.toString())
-                                                .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
-                                                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
-                                                .networkCachePolicy(coil3.request.CachePolicy.ENABLED)
-                                                .build(),
+                                        ThumbnailImage(
+                                            url = item.mediaMetadata.artworkUri?.toString(),
                                             contentDescription = null,
                                             contentScale = ContentScale.FillBounds,
                                             modifier = Modifier
@@ -370,13 +366,8 @@ fun Thumbnail(
                                         )
 
                                         // Main image
-                                        AsyncImage(
-                                            model = coil3.request.ImageRequest.Builder(LocalContext.current)
-                                                .data(item.mediaMetadata.artworkUri?.toString())
-                                                .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
-                                                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
-                                                .networkCachePolicy(coil3.request.CachePolicy.ENABLED)
-                                                .build(),
+                                        ThumbnailImage(
+                                            url = item.mediaMetadata.artworkUri?.toString(),
                                             contentDescription = null,
                                             contentScale = ContentScale.Fit,
                                             modifier = Modifier.fillMaxSize()

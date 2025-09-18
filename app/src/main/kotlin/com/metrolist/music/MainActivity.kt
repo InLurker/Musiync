@@ -155,6 +155,7 @@ import com.metrolist.music.ui.component.BottomSheetPage
 import com.metrolist.music.ui.component.IconButton
 import com.metrolist.music.ui.component.LocalBottomSheetPageState
 import com.metrolist.music.ui.component.LocalMenuState
+import com.metrolist.music.ui.component.ThumbnailImage
 import com.metrolist.music.ui.component.TopSearch
 import com.metrolist.music.ui.component.rememberBottomSheetState
 import com.metrolist.music.ui.component.shimmer.ShimmerTheme
@@ -699,8 +700,8 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }) {
                                                         if (accountImageUrl != null) {
-                                                            AsyncImage(
-                                                                model = accountImageUrl,
+                                                            ThumbnailImage(
+                                                                url = accountImageUrl,
                                                                 contentDescription = stringResource(R.string.account),
                                                                 modifier = Modifier
                                                                     .size(24.dp)

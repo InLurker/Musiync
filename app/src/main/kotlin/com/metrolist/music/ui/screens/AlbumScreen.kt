@@ -90,6 +90,7 @@ import com.metrolist.music.ui.component.IconButton
 import com.metrolist.music.ui.component.LocalMenuState
 import com.metrolist.music.ui.component.NavigationTitle
 import com.metrolist.music.ui.component.SongListItem
+import com.metrolist.music.ui.component.ThumbnailImage
 import com.metrolist.music.ui.component.YouTubeGridItem
 import com.metrolist.music.ui.component.shimmer.ButtonPlaceholder
 import com.metrolist.music.ui.component.shimmer.ListItemPlaceHolder
@@ -183,8 +184,8 @@ fun AlbumScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AsyncImage(
-                            model = albumWithSongs.album.thumbnailUrl,
+                        ThumbnailImage(
+                            url = albumWithSongs.album.thumbnailUrl,
                             contentDescription = null,
                             modifier =
                             Modifier

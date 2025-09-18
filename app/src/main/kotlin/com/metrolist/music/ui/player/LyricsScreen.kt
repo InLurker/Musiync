@@ -115,6 +115,7 @@ import kotlin.runCatching
 import com.metrolist.music.utils.makeTimeString
 import androidx.compose.ui.text.style.TextAlign
 import com.metrolist.music.db.entities.SongEntity
+import com.metrolist.music.ui.component.ThumbnailImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -281,8 +282,8 @@ fun LyricsScreen(
                 }
             ) { mediaMetadata ->
                 if (playerBackground == PlayerBackgroundStyle.BLUR) {
-                    AsyncImage(
-                        model = mediaMetadata.thumbnailUrl,
+                    ThumbnailImage(
+                        url = mediaMetadata.thumbnailUrl,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds,
                         modifier = Modifier

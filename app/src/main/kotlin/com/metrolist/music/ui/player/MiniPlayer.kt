@@ -84,6 +84,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
+import com.metrolist.music.ui.component.ThumbnailImage
 
 @Composable
 fun MiniPlayer(
@@ -293,8 +294,8 @@ private fun NewMiniPlayer(
                     ) {
                         // Thumbnail background
                         mediaMetadata?.let { metadata ->
-                            AsyncImage(
-                                model = metadata.thumbnailUrl,
+                            ThumbnailImage(
+                                url = metadata.thumbnailUrl,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -312,7 +313,7 @@ private fun NewMiniPlayer(
                                     shape = CircleShape
                                 )
                         )
-                        
+
                         androidx.compose.animation.AnimatedVisibility(
                             visible = playbackState == Player.STATE_ENDED || !isPlaying,
                             enter = fadeIn(),
@@ -374,7 +375,7 @@ private fun NewMiniPlayer(
                         }
                         
                         // Error indicator
-                        androidx.compose.animation.AnimatedVisibility(
+                        AnimatedVisibility(
                             visible = error != null,
                             enter = fadeIn(),
                             exit = fadeOut(),
