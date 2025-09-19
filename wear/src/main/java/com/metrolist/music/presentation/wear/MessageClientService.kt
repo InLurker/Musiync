@@ -47,12 +47,17 @@ class MessageClientService @Inject constructor(context: Context): MessageClient.
         sendMessage(MessageClientPathEnum.PLAYBACK_COMMAND.path, command.name.toByteArray())
     }
 
-    fun sendQueueRangeRequest(start: Int, end: Int) {
-        sendMessage(MessageClientPathEnum.REQUEST_QUEUE.path, "$start,$end".toByteArray())
+    fun sendQueueRangeRequest(start: Int, end: Int, requestId: Long) {
+        val payload = "$start,$end,$requestId"
+        sendMessage(MessageClientPathEnum.REQUEST_QUEUE.path, payload.toByteArray())
     }
 
     fun sendCurrentStateRequest() {
         sendMessage(MessageClientPathEnum.REQUEST_STATE.path, null)
+    }
+
+    fun sendSeekToIndex(index: Int) {
+        sendMessage(MessageClientPathEnum.SEEK_TO_INDEX.path, index.toString().toByteArray())
     }
 
     fun sendHeartbeatPing() {

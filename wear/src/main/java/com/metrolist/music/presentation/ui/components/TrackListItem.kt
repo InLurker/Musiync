@@ -2,6 +2,7 @@ package com.metrolist.music.presentation.ui.components
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,16 +30,18 @@ fun TrackListItem(
     trackInfo: TrackInfo,
     isPlaying: Boolean,
     passiveColor: Color,
-    activeColor: Color
+    activeColor: Color,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .padding(8.dp)
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .background(
                 color = if (isPlaying) activeColor else passiveColor
             )
-            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)

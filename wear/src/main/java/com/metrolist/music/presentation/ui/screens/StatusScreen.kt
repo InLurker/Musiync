@@ -54,7 +54,7 @@ fun StatusScreen(
             onClick = { viewModel.pingPhone() },
             modifier = Modifier
                 .padding(top = 20.dp)
-                .height(8.dp)
+                .height(12.dp)
         ) {
             Text("Ping Phone")
         }

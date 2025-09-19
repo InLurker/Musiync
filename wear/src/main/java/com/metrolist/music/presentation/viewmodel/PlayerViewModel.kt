@@ -45,4 +45,12 @@ class PlayerViewModel @Inject constructor(
             musicRepository.setAccentColor(dominantColor)
         }
     }
+
+    fun onQueueItemSelected(index: Int) {
+        messageClientService.sendSeekToIndex(index)
+    }
+
+    fun ensureQueueForIndex(index: Int) {
+        musicRepository.ensureQueueForIndex(index)
+    }
 }

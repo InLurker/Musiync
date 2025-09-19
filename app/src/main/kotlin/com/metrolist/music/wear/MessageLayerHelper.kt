@@ -50,8 +50,15 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                 }
                 MessageLayerPathEnum.REQUEST_QUEUE.path -> {
                     Timber.tag("MessageLayerHelper").d("Received request for queue")
-                    val (start, end) = String(messageEvent.data).split(",").map { it.toInt() }
-                    dataLayerHelper.handleQueueRangeRequest(start, end) { queue ->
+                    val parts = String(messageEvent.data).split(",")
+                    if (parts.size < 2) {
+                        Timber.tag("MessageLayerHelper").w("Ignoring malformed queue request: ${parts}")
+                        return
+                    }
+                    val start = parts[0].toInt()
+                    val end = parts[1].toInt()
+                    val requestId = parts.getOrNull(2)?.toLongOrNull() ?: 0L
+                    dataLayerHelper.handleQueueRangeRequest(start, end, requestId) { queue ->
                         if (queue == null || queue.trackList.isEmpty()) {
                             Timber.tag("MessageLayerHelper").d("Queue is empty")
                             return@handleQueueRangeRequest
@@ -60,6 +67,9 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                         val request = PutDataMapRequest.create(DataLayerPathEnum.QUEUE_RESPONSE.path)
                         val dataMap = request.dataMap
                         dataMap.putInt("queueHash", queue.queueHash)
+                        dataMap.putInt("startIndex", queue.startIndex)
+                        dataMap.putInt("endIndexExclusive", queue.endIndexExclusive)
+                        dataMap.putLong("requestId", queue.requestId)
 
                         // Build a nested DataMap for the track list.
                         val tracksDataMap = DataMap()
@@ -92,6 +102,16 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                     Timber.tag("MessageLayerHelper").d("Received playback command")
                     val command = WearCommandEnum.valueOf(String(messageEvent.data))
                     handleMusicCommand(command)
+                }
+                MessageLayerPathEnum.SEEK_TO_INDEX.path -> {
+                    val index = String(messageEvent.data).toIntOrNull()
+                    if (index == null) {
+                        Timber.tag("MessageLayerHelper").w("Ignoring SEEK_TO_INDEX with non-numeric payload")
+                        return
+                    }
+                    Timber.tag("MessageLayerHelper").d("Seeking to queue index $index")
+                    playerConnection?.player?.seekToDefaultPosition(index)
+                    playerConnection?.player?.playWhenReady = true
                 }
                 else -> {
                     Timber.tag("MessageLayerHelper").d("Unknown message path: ${messageEvent.path}")

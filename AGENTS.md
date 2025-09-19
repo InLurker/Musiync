@@ -1,40 +1,37 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `wear/`: Wear OS app (Kotlin, Jetpack Compose, Hilt, Proto). Code in `wear/src/main/java`, resources in `wear/src/main/res`, proto in `wear/src/main/proto`.
-- `app/`: Phone companion app for data layer integration and local testing.
-- Libraries: `innertube/`, `kizzy/`, `kugou/`, `lrclib/`, `material-color-utilities/` (shared utilities and data sources).
-- Tooling: root Gradle (`build.gradle.kts`, `settings.gradle.kts`), `lint.xml`, CI in `.github/`, release assets in `fastlane/`, images in `assets/`.
-- Tests: instrumented in `wear/src/androidTest/java`; unit tests in `*/src/test/java`.
+- `wear/`: Kotlin Wear OS app using Jetpack Compose, Hilt, and Proto; source in `wear/src/main/java`, resources in `wear/src/main/res`, proto contracts in `wear/src/main/proto`.
+- `app/`: Phone companion app used for data layer integration and local validation; mirrors Wear data contracts.
+- Shared libraries (`innertube/`, `kizzy/`, `kugou/`, `lrclib/`, `material-color-utilities/`) expose reusable data sources and utilities.
+- Tests live beside modules: unit tests in `*/src/test/java`, instrumented tests under `wear/src/androidTest/java`.
+- Tooling and assets: Gradle config at repo root, lint rules in `lint.xml`, CI under `.github/`, imagery in `assets/`, release metadata in `fastlane/`.
 
 ## Build, Test, and Development Commands
-- Build Wear debug APK: `./gradlew :wear:assembleDebug`
-- Install on Wear device/emulator: `./gradlew :wear:installDebug`
-- Run instrumented tests (Wear): `./gradlew :wear:connectedDebugAndroidTest`
-- Run unit tests: `./gradlew :wear:testDebugUnitTest`
-- Lint (Wear/all): `./gradlew :wear:lint` or `./gradlew lint`
-- Clean outputs: `./gradlew clean`
-- Phone app (if needed): `./gradlew :app:assembleDebug` / `:app:installDebug`
+- `./gradlew :wear:assembleDebug` builds a debuggable Wear APK.
+- `./gradlew :wear:installDebug` deploys the Wear app to a connected device or emulator.
+- `./gradlew :wear:testDebugUnitTest` runs module unit tests; ensure new logic has coverage.
+- `./gradlew :wear:connectedDebugAndroidTest` executes instrumented Compose/UI tests; requires an attached Wear target.
+- `./gradlew :wear:lint` (or `./gradlew lint`) enforces static analysis and repository coding standards.
+- `./gradlew clean` removes previous build outputs before release or CI runs.
 
 ## Coding Style & Naming Conventions
-- Kotlin, 4‑space indentation; no tabs. One public class per file; filename matches class.
-- Names: `UpperCamelCase` for classes/objects; `lowerCamelCase` for functions/vars; resource names `snake_case`.
-- Compose: prefer stateless composables and `@Stable` models; hoist state.
-- DI: use Hilt modules; avoid service locators.
-- Formatting: use Android Studio’s Kotlin formatter; fix warnings before PR; run `./gradlew lint`.
+- Kotlin with 4-space indentation; rely on Android Studio formatter before committing.
+- Favor stateless composables, hoist state, and annotate stable models with `@Stable` when necessary.
+- Name classes/objects in UpperCamelCase, functions and vars in lowerCamelCase, resources in snake_case; limit one public class per file.
+- Inject dependencies with Hilt modules; avoid manual service locators or singletons.
 
 ## Testing Guidelines
-- Locations: UI/instrumented in `wear/src/androidTest/java`; unit in `*/src/test/java`.
-- Names: suffix tests with `Test` (e.g., `PlayerViewModelTest`).
-- Run: unit `./gradlew :wear:testDebugUnitTest`; instrumented `./gradlew :wear:connectedDebugAndroidTest`.
-- Practice: mock I/O; keep tests deterministic; target meaningful coverage for changes.
+- Follow `FeatureNameTest` naming; mirror package structure inside `src/test` and `src/androidTest`.
+- Stub network or file I/O; keep tests deterministic for CI.
+- Validate new features with unit tests and targeted UI flows via instrumented tests before submitting.
 
 ## Commit & Pull Request Guidelines
-- Commits: imperative mood, concise scope (e.g., `fix: crash on null album art`, `feat(wear): queue management`).
-- PRs: clear description, rationale, steps to test, linked issues (e.g., `Fixes #123`), screenshots/GIFs for UI, and devices/emulators used.
-- Quality gate: run `clean`, `assembleDebug`, tests, and `lint` locally; remove debug logs/secrets.
+- Use imperative, scoped commits (e.g., `feat(wear): queue management`); keep each change focused.
+- PRs should describe motivation, testing performed, and link issues (`Fixes #123`).
+- Provide screenshots or GIFs for UI changes and note device/emulator coverage.
+- Run `clean`, `assembleDebug`, relevant tests, and lint locally before requesting review.
 
 ## Security & Configuration Tips
-- Do not commit `local.properties` or signing files; use `MUSIC_DEBUG_*` env vars for debug signing.
-- Proto changes in `wear/src/main/proto` regenerate via Gradle; version shared contracts carefully.
-
+- Never commit signing artifacts or `local.properties`; leverage `MUSIC_DEBUG_*` environment variables.
+- Update proto schemas carefully; regenerate bindings via Gradle to keep Wear and phone apps in sync.

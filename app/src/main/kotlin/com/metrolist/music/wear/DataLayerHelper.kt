@@ -95,14 +95,14 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
     }
 
-    fun handleQueueRangeRequest(start: Int, end: Int, callback: (MusicQueue?) -> Unit) {
-        callback(getPaginatedQueue(start, end))
+    fun handleQueueRangeRequest(start: Int, end: Int, requestId: Long, callback: (MusicQueue?) -> Unit) {
+        callback(getPaginatedQueue(start, end, requestId))
     }
 
-    private fun getPaginatedQueue(start: Int, end: Int): MusicQueue? {
+    private fun getPaginatedQueue(start: Int, end: Int, requestId: Long): MusicQueue? {
         playerConnection?.let { connection ->
             val queue = connection.queueWindows.value
-            val paginatedQueue = constructMusicQueue(queue, start, end)
+            val paginatedQueue = constructMusicQueue(queue, start, end, requestId)
             return paginatedQueue
         } ?: run {
             return null
@@ -112,14 +112,25 @@ class DataLayerHelper @Inject constructor(context: Context) {
     private fun constructMusicQueue(
         queue: List<Timeline.Window>,
         start: Int,
-        end: Int
+        end: Int,
+        requestId: Long
     ): MusicQueue {
-        val subQueue = queue.subList(start, end)
+        if (queue.isEmpty()) {
+            return MusicQueue(queue.hashCode(), emptyMap(), emptyMap(), 0, 0, requestId)
+        }
+
+        val safeStart = start.coerceIn(0, queue.size)
+        val safeEnd = end.coerceIn(safeStart, queue.size)
+        if (safeStart == safeEnd) {
+            return MusicQueue(queue.hashCode(), emptyMap(), emptyMap(), safeStart, safeEnd, requestId)
+        }
+
+        val subQueue = queue.subList(safeStart, safeEnd)
         val trackList = mutableMapOf<Int, TrackInfo>()
         val artworkMap = mutableMapOf<String, Asset>()
 
         for ((i, window) in subQueue.withIndex()) {
-            val originalIndex = start + i
+            val originalIndex = safeStart + i
             val mediaMetadata = window.mediaItem.mediaMetadata
 
             val title = mediaMetadata.title.toString()
@@ -146,12 +157,12 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }
         Timber.tag("Wear-Queue").d(
             "Prepared queue window [%d,%d): tracks=%d assets=%d",
-            start,
-            end,
+            safeStart,
+            safeEnd,
             trackList.size,
             artworkMap.size
         )
-        return MusicQueue(queue.hashCode(), trackList, artworkMap)
+        return MusicQueue(queue.hashCode(), trackList, artworkMap, safeStart, safeEnd, requestId)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {

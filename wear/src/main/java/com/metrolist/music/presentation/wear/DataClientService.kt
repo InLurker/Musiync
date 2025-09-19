@@ -88,7 +88,10 @@ class DataClientService : WearableListenerService() {
         )
 
         val queue = dataMap.getDataMap("trackList")?.let { extractTrackInfoFromDataMap(it) }
-        musicRepository.updateQueue(hash, queue)
+        val startIndex = dataMap.getInt("startIndex")
+        val endIndexExclusive = dataMap.getInt("endIndexExclusive")
+        val requestId = dataMap.getLong("requestId")
+        musicRepository.updateQueue(hash, queue, startIndex, endIndexExclusive, requestId)
         arts?.let { extractArtworkAssetsFromDataMap(it, this@DataClientService) }
     }
 

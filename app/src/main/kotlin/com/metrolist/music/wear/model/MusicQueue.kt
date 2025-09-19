@@ -5,5 +5,8 @@ import com.google.android.gms.wearable.Asset
 class MusicQueue(
     val queueHash: Int,
     val trackList: Map<Int, TrackInfo>,
-    val artworkAssets: Map<String, Asset>
+    val artworkAssets: Map<String, Asset>,
+    val startIndex: Int,
+    val endIndexExclusive: Int,
+    val requestId: Long
 )

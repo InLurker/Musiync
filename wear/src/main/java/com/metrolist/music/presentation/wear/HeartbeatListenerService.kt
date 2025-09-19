@@ -15,7 +15,7 @@ class HeartbeatListenerService : WearableListenerService() {
     override fun onMessageReceived(messageEvent: MessageEvent) {
         val path = messageEvent.path
         if (path == MessageClientPathEnum.HEARTBEAT.path) {
-            val payload = messageEvent.data?.toString(Charsets.UTF_8)
+            val payload = messageEvent.data.toString(Charsets.UTF_8)
             Log.d("WearHeartbeat", "Received heartbeat: $payload from ${messageEvent.sourceNodeId}")
             when (payload) {
                 "ping" -> {
