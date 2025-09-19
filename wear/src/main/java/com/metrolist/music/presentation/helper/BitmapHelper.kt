@@ -15,26 +15,28 @@ import com.google.android.gms.wearable.DataClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-suspend fun Asset.cacheInCoil(context: Context, dataClient: DataClient, key: String) {
-    withContext(Dispatchers.IO) {
+suspend fun Asset.cacheInCoil(context: Context, dataClient: DataClient, key: String): Bitmap? {
+    return withContext(Dispatchers.IO) {
         try {
             val assetResponse = Tasks.await(dataClient.getFdForAsset(this@cacheInCoil))
             assetResponse.inputStream.use { inputStream ->
                 val options = BitmapFactory.Options().apply {
                     inPreferredConfig = Bitmap.Config.RGB_565
                 }
-                val bitmap =  BitmapFactory.decodeStream(inputStream, null, options) ?: return@withContext
+                val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
+                    ?: return@withContext null
                 Log.d("WearCache", "Decoded asset for key(len)=${key.length} size=${bitmap.width}x${bitmap.height}")
                 val imageLoader = context.imageLoader
-                // Populate memory cache directly with the decoded bitmap under the URL key
                 imageLoader.memoryCache?.set(
                     MemoryCache.Key(key),
                     MemoryCache.Value(bitmap.asImage())
                 )
                 Log.d("WearCache", "Stored bitmap in memory cache for key(len)=${key.length}")
+                bitmap
             }
         } catch (e: Exception) {
             Log.e("WearCache", "Failed caching asset for key", e)
+            null
         }
     }
 }

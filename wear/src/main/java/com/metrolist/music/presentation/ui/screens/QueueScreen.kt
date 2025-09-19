@@ -1,96 +1,179 @@
 package com.metrolist.music.presentation.ui.screens
 
+import android.util.Log
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.Text
 import com.metrolist.music.presentation.ui.components.TrackListItem
 import com.metrolist.music.presentation.viewmodel.PlayerViewModel
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
+@OptIn(FlowPreview::class)
 @Composable
 fun QueueScreen(viewModel: PlayerViewModel) {
-    // Collect state from the ViewModel
     val musicQueue by viewModel.musicQueue.collectAsState()
     val musicState by viewModel.musicState.collectAsState()
     val accentColor by viewModel.accentColor.collectAsState()
+    val artworkBitmaps by viewModel.artworkBitmaps.collectAsState()
+    val displayedIndices = viewModel.displayedIndices
+    val isFetching by viewModel.isFetching.collectAsState()
 
-    // Scroll state for the ScalingLazyColumn
+    var isLoadingPrevious by remember { mutableStateOf(false) }
+    var isLoadingNext by remember { mutableStateOf(false) }
+
     val lazyListState = rememberScalingLazyListState()
+    val isScrollingLocked = remember { mutableStateOf(false) }
 
-    // Scroll to the current track when the music state changes
-    val queueSize = musicState?.queueSize ?: musicQueue.size
+    val passiveColor = accentColor?.let {
+        lerp(Color.Black, it, 0.2f)
+    } ?: Color.White.copy(alpha = 0.12f)
 
-    LaunchedEffect(musicState?.currentIndex, queueSize, musicQueue) {
-        val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
-        if (queueSize <= 0) return@LaunchedEffect
+    val activeColor = accentColor?.let {
+        lerp(Color.Black, it, 0.5f)
+    } ?: Color.White.copy(alpha = 0.35f)
 
-        if (musicQueue.getOrNull(currentIndex) == null) {
-            viewModel.ensureQueueForIndex(currentIndex)
-        }
-
-        runCatching {
-            lazyListState.scrollToItem(currentIndex.coerceIn(0, queueSize - 1))
-        }
+    LaunchedEffect(lazyListState) {
+        snapshotFlow { lazyListState.isScrollInProgress }
+            .collect { isScrolling ->
+                isScrollingLocked.value = isScrolling
+            }
     }
 
-    LaunchedEffect(lazyListState, musicQueue, queueSize) {
+    LaunchedEffect(lazyListState, musicQueue) {
         snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
             .filter { it.isNotEmpty() }
-            .map { items ->
-                val firstPos = items.minOf { it.index }.coerceAtLeast(0)
-                val lastPos = items.maxOf { it.index }.coerceAtLeast(firstPos)
-                Pair(firstPos, lastPos)
+            .map { info ->
+                val first = info.minOf { it.index }
+                val last = info.maxOf { it.index }
+                first to last
             }
             .distinctUntilChanged()
+            .debounce(200.milliseconds)
             .collectLatest { (firstVisible, lastVisible) ->
-                if (queueSize <= 0) return@collectLatest
-                if (firstVisible > 0) {
-                    viewModel.ensureQueueForIndex(firstVisible - 1)
+                if (displayedIndices.isEmpty() || isFetching || isScrollingLocked.value) return@collectLatest
+                val safeFirst = firstVisible.coerceIn(0, displayedIndices.lastIndex)
+                val safeLast = lastVisible.coerceIn(0, displayedIndices.lastIndex)
+
+                if (safeFirst <= 2 && displayedIndices.first() > 0 && !isLoadingPrevious) {
+                    isLoadingPrevious = true
+                    viewModel.fetchPreviousTracksForScroll()
                 }
-                if (lastVisible < queueSize - 1) {
-                    viewModel.ensureQueueForIndex(lastVisible + 1)
+
+                if (safeLast >= displayedIndices.size - 3 &&
+                    displayedIndices.last() < (musicState?.queueSize ?: 0) - 1 &&
+                    !isLoadingNext
+                ) {
+                    isLoadingNext = true
+                    viewModel.fetchNextTracksForScroll()
                 }
             }
     }
 
-    ScalingLazyColumn(
-        state = lazyListState,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        val passiveColor = accentColor?.let {
-            lerp(Color.Black, it, 0.2f)
-        } ?: Color.White.copy(alpha = 0.12f)
+    LaunchedEffect(isLoadingNext, isLoadingPrevious) {
+        if (isLoadingNext || isLoadingPrevious) {
+            delay(2.seconds)
+            isLoadingNext = false
+            isLoadingPrevious = false
+        }
+    }
 
-        val activeColor = accentColor?.let {
-            lerp(Color.Black, it, 0.5f)
-        } ?: Color.White.copy(alpha = 0.35f)
-        items(queueSize, key = { it }) { absoluteIndex ->
-            val track = musicQueue.getOrNull(absoluteIndex)
-            TrackListItem(
-                trackInfo = track,
-                isPlaying = absoluteIndex == musicState?.currentIndex,
-                passiveColor = passiveColor,
-                activeColor = activeColor,
-                onClick = {
-                    if (track != null) {
-                        viewModel.onQueueItemSelected(absoluteIndex)
-                    } else {
-                        viewModel.ensureQueueForIndex(absoluteIndex)
-                    }
+    LaunchedEffect(displayedIndices.size) {
+        if (displayedIndices.isNotEmpty()) {
+            isLoadingNext = false
+            isLoadingPrevious = false
+        }
+    }
+
+    LaunchedEffect(musicState?.currentIndex) {
+        val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
+        val targetPosition = displayedIndices.indexOf(currentIndex)
+        if (targetPosition >= 0) {
+            runCatching {
+                lazyListState.animateScrollToItem(targetPosition)
+            }.onFailure { throwable ->
+                Log.w("QueueScreen", "Failed to scroll to index=$currentIndex", throwable)
+            }
+        } else {
+            viewModel.ensureQueueForIndex(currentIndex)
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        if (displayedIndices.isEmpty()) {
+            if (isFetching) {
+                CircularProgressIndicator()
+            } else {
+                Text(text = "Queue is empty", color = Color.White)
+            }
+        } else {
+            ScalingLazyColumn(
+                state = lazyListState,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                contentPadding = PaddingValues(vertical = 48.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(displayedIndices, key = { it }) { index ->
+                    val track = musicQueue[index]
+                    TrackListItem(
+                        trackInfo = track,
+                        isPlaying = index == musicState?.currentIndex,
+                        passiveColor = passiveColor,
+                        activeColor = activeColor,
+                        artworkBitmap = track?.artworkUrl?.let { artworkBitmaps[it] },
+                        onClick = { viewModel.onQueueItemSelected(index) }
+                    )
                 }
-            )
+            }
+
+            if (isLoadingPrevious) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp)
+                        .zIndex(1f)
+                )
+            }
+
+            if (isLoadingNext) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp)
+                        .zIndex(1f)
+                )
+            }
         }
     }
 }

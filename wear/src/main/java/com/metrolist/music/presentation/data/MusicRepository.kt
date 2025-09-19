@@ -1,16 +1,12 @@
 package com.metrolist.music.presentation.data
 
+import android.graphics.Bitmap
 import android.util.Log
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.graphics.Color
 import com.metrolist.music.common.models.MusicState
 import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.wear.MessageClientService
-import java.util.ArrayDeque
-import java.util.concurrent.atomic.AtomicLong
-import javax.inject.Inject
-import javax.inject.Singleton
-import kotlin.math.max
-import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,6 +21,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import java.util.ArrayDeque
+import java.util.SortedMap
+import java.util.concurrent.atomic.AtomicLong
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.math.max
+import kotlin.math.min
 
 private const val DEFAULT_WINDOW_SIZE = 7
 private const val QUEUE_REQUEST_TIMEOUT_MS = 5_000L
@@ -45,14 +48,16 @@ class MusicRepository @Inject constructor(
     private val messageClientService: MessageClientService
 ) {
 
-    val queue = MutableStateFlow<List<TrackInfo?>>(emptyList())
+    val queue = MutableStateFlow<SortedMap<Int, TrackInfo>>(sortedMapOf())
+    val artworks = MutableStateFlow<MutableMap<String, Bitmap?>>(mutableMapOf())
     val musicState = MutableStateFlow<MusicState?>(null)
     val accentColor = MutableStateFlow<Color?>(null)
+    val displayedIndices = SnapshotStateList<Int>()
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queueRequestChannel = Channel<QueueRequest>(Channel.BUFFERED)
     private val queueUpdateSignal = MutableSharedFlow<Long>(extraBufferCapacity = 1)
-    private val pendingIndices = MutableStateFlow<Set<Int>>(emptySet())
+    val pendingIndices = MutableStateFlow<MutableSet<Int>>(mutableSetOf())
     private val mutex = Mutex()
     private val nextQueueRequestId = AtomicLong(0)
     private val activeQueueRequestId = AtomicLong(0)
@@ -66,16 +71,13 @@ class MusicRepository @Inject constructor(
     }
 
     fun handleIncomingState(state: MusicState) {
-        val requiresReset = shouldResetQueue(state)
-        prepareQueueForState(state, requiresReset)
-        updateState(state)
-
-        repositoryScope.launch {
-            if (requiresReset) {
-                val (start, end) = calculateInitialPageRange(state.currentIndex, state.queueSize)
-                enqueueQueueRequest(start, end, RequestPriority.HIGH)
-            } else {
-                ensureQueueForIndex(state.currentIndex, RequestPriority.HIGH)
+        if (shouldReInitializeQueue(state)) {
+            resetQueue(state)
+        } else {
+            repositoryScope.launch {
+                handleQueuePagination(state.currentIndex)
+                waitForQueueUpdate()
+                updateState(state)
             }
         }
     }
@@ -84,27 +86,39 @@ class MusicRepository @Inject constructor(
         val currentState = musicState.value ?: return
         if (index < 0 || index >= currentState.queueSize) return
 
-        val alreadyLoaded = queue.value.getOrNull(index) != null
+        val alreadyLoaded = queue.value.containsKey(index)
         val isPending = pendingIndices.value.contains(index)
         if (alreadyLoaded || isPending) return
 
-        repositoryScope.launch {
-            enqueueQueueRequestForIndex(index, priority)
-        }
+        val windowRadius = DEFAULT_WINDOW_SIZE / 2
+        val start = max(0, index - windowRadius)
+        val end = min(currentState.queueSize, index + windowRadius + 1)
+        requestQueueRange(start, end, priority)
     }
 
-    private fun enqueueQueueRequestForIndex(index: Int, priority: RequestPriority) {
-        val queueSize = musicState.value?.queueSize ?: queue.value.size
-        if (queueSize <= 0) return
+    fun requestQueueRange(
+        startIndex: Int,
+        endIndex: Int,
+        priority: RequestPriority = RequestPriority.NORMAL
+    ): Boolean {
+        if (startIndex >= endIndex) return true
 
-        val (start, end) = calculateWindowForIndex(index, queueSize)
-        enqueueQueueRequest(start, end, priority)
-    }
+        val range = (startIndex until endIndex).toSet()
+        val loaded = queue.value.keys
+        val pending = pendingIndices.value
 
-    private fun enqueueQueueRequest(start: Int, end: Int, priority: RequestPriority) {
-        if (start >= end) return
-        repositoryScope.launch {
-            queueRequestChannel.send(QueueRequest(start, end, priority))
+        return when {
+            loaded.containsAll(range) -> {
+                updateDisplayedIndices(range)
+                true
+            }
+            pending.containsAll(range) -> true
+            else -> {
+                repositoryScope.launch {
+                    queueRequestChannel.send(QueueRequest(startIndex, endIndex, priority))
+                }
+                false
+            }
         }
     }
 
@@ -127,31 +141,26 @@ class MusicRepository @Inject constructor(
     }
 
     private suspend fun processQueueRequest(request: QueueRequest) {
-        val totalSize = musicState.value?.queueSize ?: queue.value.size
-        if (totalSize <= 0) return
+        val queueSize = musicState.value?.queueSize ?: return
+        if (queueSize <= 0) return
 
         val start = request.startIndex.coerceAtLeast(0)
-        val end = request.endIndex.coerceAtMost(totalSize)
+        val end = request.endIndex.coerceAtMost(queueSize)
         if (start >= end) return
 
-        val currentQueue = queue.value
-        val currentPending = pendingIndices.value
         val missingIndices = (start until end).filter { index ->
-            currentQueue.getOrNull(index) == null && !currentPending.contains(index)
+            !queue.value.containsKey(index) && !pendingIndices.value.contains(index)
         }
 
-        if (missingIndices.isEmpty()) {
-            return
-        }
+        if (missingIndices.isEmpty()) return
 
         val actualStart = missingIndices.first()
         val actualEndExclusive = missingIndices.last() + 1
-
         val requestedRange = actualStart until actualEndExclusive
 
         mutex.withLock {
             val updated = pendingIndices.value.toMutableSet()
-            requestedRange.forEach { updated.add(it) }
+            requestedRange.forEach(updated::add)
             pendingIndices.value = updated
         }
 
@@ -172,44 +181,57 @@ class MusicRepository @Inject constructor(
         return requestId
     }
 
-    private suspend fun waitForQueueUpdate(requestId: Long, requestedRange: IntRange) {
+    private suspend fun waitForQueueUpdate(
+        requestId: Long? = null,
+        requestedRange: IntRange? = null
+    ) {
         try {
             withTimeout(QUEUE_REQUEST_TIMEOUT_MS) {
-                queueUpdateSignal.first { it == requestId }
+                if (requestId == null) {
+                    queueUpdateSignal.first()
+                } else {
+                    queueUpdateSignal.first { it == requestId }
+                }
             }
         } catch (e: TimeoutCancellationException) {
-            Log.e("MusicRepository", "Queue update timed out for requestId=$requestId", e)
-            clearPendingRange(requestedRange)
+            if (requestId != null) {
+                Log.e("MusicRepository", "Queue update timed out for requestId=$requestId", e)
+            } else {
+                Log.e("MusicRepository", "Queue update timed out", e)
+            }
+            requestedRange?.let { clearPendingRange(it) }
+            if (requestedRange == null) {
+                mutex.withLock {
+                    pendingIndices.value = mutableSetOf()
+                }
+            }
         }
     }
 
     private suspend fun clearPendingRange(range: IntRange) {
         mutex.withLock {
             val updated = pendingIndices.value.toMutableSet()
-            range.forEach { updated.remove(it) }
+            range.forEach(updated::remove)
             pendingIndices.value = updated
         }
     }
 
-    private fun shouldResetQueue(state: MusicState): Boolean {
+    private fun shouldReInitializeQueue(state: MusicState): Boolean {
         val current = musicState.value ?: return true
         return current.queueHash != state.queueHash || current.queueSize != state.queueSize
     }
 
-    private fun prepareQueueForState(state: MusicState, forceReset: Boolean) {
-        val newSize = state.queueSize
+    private fun resetQueue(state: MusicState) {
+        queue.value = sortedMapOf()
+        artworks.value = mutableMapOf()
+        displayedIndices.clear()
+        pendingIndices.value = mutableSetOf()
 
-        if (forceReset) {
-            pendingIndices.value = emptySet()
-        }
-
-        queue.update { current ->
-            when {
-                newSize <= 0 -> emptyList()
-                forceReset -> MutableList(newSize) { null }
-                current.size == newSize -> current
-                else -> MutableList(newSize) { index -> current.getOrNull(index) }
-            }
+        repositoryScope.launch {
+            val range = calculateInitialPageRange(state.currentIndex, state.queueSize)
+            requestQueueRange(range.first, range.second, RequestPriority.HIGH)
+            waitForQueueUpdate()
+            updateState(state)
         }
     }
 
@@ -223,36 +245,13 @@ class MusicRepository @Inject constructor(
         }
     }
 
-    private fun calculateWindowForIndex(currentIndex: Int, queueSize: Int): Pair<Int, Int> {
-        if (queueSize <= 0) return 0 to 0
-
-        val clampedIndex = currentIndex.coerceIn(0, queueSize - 1)
-        val windowRadius = DEFAULT_WINDOW_SIZE / 2
-        var start = clampedIndex - windowRadius
-        var end = clampedIndex + windowRadius + 1
-
-        start = max(0, start)
-        end = min(queueSize, end)
-
-        val windowSize = end - start
-        if (windowSize < DEFAULT_WINDOW_SIZE) {
-            val remaining = DEFAULT_WINDOW_SIZE - windowSize
-            if (start == 0) {
-                end = min(queueSize, end + remaining)
-            } else if (end == queueSize) {
-                start = max(0, start - remaining)
-            }
-        }
-
-        return start to end
-    }
-
-    fun updateQueue(
+    suspend fun updateQueue(
         hash: Long,
         trackDelta: Map<Int, TrackInfo>?,
         startIndex: Int,
         endIndexExclusive: Int,
-        requestId: Long
+        requestId: Long,
+        artworkDelta: (suspend () -> Map<String, Bitmap?>?)? = null
     ) {
         val rangeDescription = if (startIndex < endIndexExclusive) "$startIndex..${endIndexExclusive - 1}" else "empty"
         Log.d("MusicRepository", "Queue update id=$requestId range=$rangeDescription hash=$hash")
@@ -263,37 +262,32 @@ class MusicRepository @Inject constructor(
             return
         }
 
-        val currentHash = musicState.value?.queueHash
-        if (currentHash != null && hash != currentHash) {
-            Log.d("MusicRepository", "Queue hash changed $currentHash -> $hash")
-            queue.value = emptyList()
-        }
+        val newArtworks = artworkDelta?.invoke()
 
-        val stateQueueSize = musicState.value?.queueSize ?: queue.value.size
-        val targetSize = maxOf(stateQueueSize, endIndexExclusive, queue.value.size)
-
-        queue.update { current ->
-            if (targetSize == 0) {
-                emptyList()
-            } else {
-                val base = MutableList(targetSize) { index ->
-                    current.getOrNull(index)
-                }
-                trackDelta?.forEach { (index, track) ->
-                    if (index in base.indices) {
-                        base[index] = track
-                    }
-                }
-                base
+        mutex.withLock {
+            val currentHash = musicState.value?.queueHash
+            if (currentHash != null && hash != currentHash) {
+                Log.d("MusicRepository", "Queue hash changed $currentHash -> $hash")
+                queue.value = sortedMapOf()
+                artworks.value = mutableMapOf()
+                displayedIndices.clear()
             }
-        }
 
-        if (!trackDelta.isNullOrEmpty()) {
-            repositoryScope.launch {
-                mutex.withLock {
-                    val updated = pendingIndices.value.toMutableSet()
-                    trackDelta.keys.forEach { updated.remove(it) }
-                    pendingIndices.value = updated
+            if (!trackDelta.isNullOrEmpty()) {
+                queue.update { current ->
+                    current.apply { putAll(trackDelta) }
+                }
+
+                updateDisplayedIndices(trackDelta.keys)
+                val updated = pendingIndices.value.toMutableSet().apply {
+                    removeAll(trackDelta.keys)
+                }
+                pendingIndices.value = updated
+            }
+
+            if (!newArtworks.isNullOrEmpty()) {
+                artworks.update { current ->
+                    current.apply { putAll(newArtworks) }
                 }
             }
         }
@@ -301,6 +295,76 @@ class MusicRepository @Inject constructor(
         repositoryScope.launch {
             queueUpdateSignal.emit(requestId)
         }
+    }
+
+    private fun updateDisplayedIndices(fetchedIndices: Set<Int>) {
+        if (fetchedIndices.isEmpty()) return
+
+        val sorted = fetchedIndices.sorted()
+
+        if (displayedIndices.isEmpty()) {
+            displayedIndices.addAll(sorted)
+            return
+        }
+
+        val firstFetched = sorted.first()
+        val lastFetched = sorted.last()
+
+        when {
+            firstFetched < displayedIndices.first() -> {
+                displayedIndices.addAll(0, sorted)
+            }
+            lastFetched > displayedIndices.last() -> {
+                displayedIndices.addAll(sorted)
+            }
+            else -> {
+                val merged = (displayedIndices.toList() + sorted).distinct().sorted()
+                displayedIndices.clear()
+                displayedIndices.addAll(merged)
+            }
+        }
+    }
+
+    private fun handleQueuePagination(currentIndex: Int) {
+        if (displayedIndices.isEmpty()) {
+            reInitializeDisplayedQueue(currentIndex)
+            return
+        }
+
+        val firstDisplayed = displayedIndices.first()
+        val lastDisplayed = displayedIndices.last()
+
+        when {
+            currentIndex in firstDisplayed..(firstDisplayed + 1) -> fetchPreviousTracks(currentIndex)
+            currentIndex in (lastDisplayed - 1)..lastDisplayed -> fetchNextTracks(currentIndex)
+            currentIndex < firstDisplayed || currentIndex > lastDisplayed -> {
+                displayedIndices.clear()
+                reInitializeDisplayedQueue(currentIndex)
+            }
+        }
+    }
+
+    private fun fetchNextTracks(currentIndex: Int) {
+        val queueSize = musicState.value?.queueSize ?: return
+        val start = (displayedIndices.lastOrNull()?.plus(1)) ?: return
+        val end = min(queueSize, max(currentIndex + 4, start + DEFAULT_WINDOW_SIZE))
+        if (start < end) {
+            requestQueueRange(start, end)
+        }
+    }
+
+    private fun fetchPreviousTracks(currentIndex: Int) {
+        val startCandidate = (displayedIndices.firstOrNull() ?: return) - DEFAULT_WINDOW_SIZE
+        val start = max(0, min(currentIndex - DEFAULT_WINDOW_SIZE, startCandidate))
+        val end = displayedIndices.firstOrNull() ?: return
+        if (start < end) {
+            requestQueueRange(start, end)
+        }
+    }
+
+    private fun reInitializeDisplayedQueue(currentIndex: Int) {
+        val range = calculateInitialPageRange(currentIndex, musicState.value?.queueSize ?: 0)
+        requestQueueRange(range.first, range.second, RequestPriority.HIGH)
     }
 
     private fun updateState(state: MusicState) {

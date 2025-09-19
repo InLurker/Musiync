@@ -1,7 +1,7 @@
 package com.metrolist.music.presentation.wear
 
 import android.annotation.SuppressLint
-import android.content.Context
+import android.graphics.Bitmap
 import android.util.Log
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
@@ -91,8 +91,17 @@ class DataClientService : WearableListenerService() {
         val startIndex = dataMap.getInt("startIndex")
         val endIndexExclusive = dataMap.getInt("endIndexExclusive")
         val requestId = dataMap.getLong("requestId")
-        musicRepository.updateQueue(hash, queue, startIndex, endIndexExclusive, requestId)
-        arts?.let { extractArtworkAssetsFromDataMap(it, this@DataClientService) }
+        val artworkLoader = arts?.let { assetsMap ->
+            suspend { extractArtworkAssetsFromDataMap(assetsMap) }
+        }
+        musicRepository.updateQueue(
+            hash = hash,
+            trackDelta = queue,
+            startIndex = startIndex,
+            endIndexExclusive = endIndexExclusive,
+            requestId = requestId,
+            artworkDelta = artworkLoader
+        )
     }
 
     private fun extractTrackInfoFromDataMap(tracksDataMap: DataMap): Map<Int, TrackInfo> {
@@ -111,12 +120,16 @@ class DataClientService : WearableListenerService() {
     }
 
     private suspend fun extractArtworkAssetsFromDataMap(
-        artworkDataMap: DataMap,
-        context: Context
-    ) {
+        artworkDataMap: DataMap
+    ): Map<String, Bitmap?> {
+        val bitmaps = mutableMapOf<String, Bitmap?>()
         for (key in artworkDataMap.keySet()) {
             Log.d("WearDataListenerService", "Caching artwork key(len)=${key.length}")
-            artworkDataMap.getAsset(key)?.cacheInCoil(context, dataClient, key)
+            val bitmap = artworkDataMap.getAsset(key)?.cacheInCoil(this, dataClient, key)
+            if (bitmap != null) {
+                bitmaps[key] = bitmap
+            }
         }
+        return bitmaps
     }
 }

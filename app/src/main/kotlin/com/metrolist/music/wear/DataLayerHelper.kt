@@ -361,7 +361,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
 //    }
 }
 
-private data class PlayerSnapshot(
+data class PlayerSnapshot(
     val queueHash: Long,
     val queueSize: Int,
     val currentIndex: Int,

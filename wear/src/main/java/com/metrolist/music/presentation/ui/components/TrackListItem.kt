@@ -7,21 +7,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import coil3.request.bitmapConfig
 import coil3.request.crossfade
 import com.metrolist.music.common.models.TrackInfo
@@ -32,20 +34,17 @@ fun TrackListItem(
     isPlaying: Boolean,
     passiveColor: Color,
     activeColor: Color,
-    onClick: () -> Unit
+    artworkBitmap: Bitmap?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     val isPlaceholder = trackInfo == null
-    var containerModifier = Modifier
-        .padding(8.dp)
+    val containerModifier = modifier
+        .padding(horizontal = 8.dp, vertical = 4.dp)
         .fillMaxWidth()
         .clip(RoundedCornerShape(16.dp))
-        .background(
-            color = if (isPlaying) activeColor else passiveColor
-        )
-
-    if (!isPlaceholder) {
-        containerModifier = containerModifier.clickable(onClick = onClick)
-    }
+        .background(color = if (isPlaying) activeColor else passiveColor)
+        .let { base -> if (isPlaceholder) base else base.clickable(onClick = onClick) }
 
     Row(
         modifier = containerModifier
@@ -53,62 +52,74 @@ fun TrackListItem(
         if (isPlaceholder) {
             Box(
                 modifier = Modifier
-                    .padding(8.dp)
-                    .height(32.dp)
-                    .width(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .padding(10.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color.White.copy(alpha = 0.08f))
             )
         } else {
-            val artworkUrl = trackInfo.artworkUrl
+            val artworkUrl = trackInfo!!.artworkUrl
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(artworkUrl)
+                    .data(artworkBitmap ?: artworkUrl)
                     .apply {
                         memoryCacheKey(artworkUrl)
                         diskCacheKey(artworkUrl)
                     }
-                    .crossfade(1000)
+                    .crossfade(700)
                     .bitmapConfig(Bitmap.Config.RGB_565)
+                    .allowHardware(false)
                     .build(),
                 contentDescription = "Album Artwork",
                 modifier = Modifier
-                    .padding(8.dp)
-                    .height(32.dp)
-                    .width(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .padding(10.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop
             )
         }
-        Column {
+
+        Column(
+            modifier = Modifier
+                .padding(vertical = 6.dp)
+                .fillMaxWidth()
+        ) {
             if (isPlaceholder) {
                 Text(
                     text = "Loading...",
                     fontSize = 12.sp,
                     color = Color.White.copy(alpha = 0.6f),
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "Fetching details",
                     fontSize = 10.sp,
-                    color = Color.White.copy(alpha = 0.4f)
+                    color = Color.White.copy(alpha = 0.4f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             } else {
                 Text(
-                    text = trackInfo.trackName,
+                    text = trackInfo!!.trackName,
                     fontSize = 14.sp,
                     maxLines = 1,
                     color = Color.White,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    overflow = TextOverflow.Ellipsis
                 )
                 val albumArtistText = listOfNotNull(
                     trackInfo.artistName.takeIf { it.isNotEmpty() },
                     trackInfo.albumName.takeIf { it.isNotEmpty() }
-                ).joinToString(" - ")
-                albumArtistText.takeIf { it.isNotEmpty() }?.let {
+                ).joinToString(" · ")
+                if (albumArtistText.isNotEmpty()) {
                     Text(
                         text = albumArtistText,
                         fontSize = 10.sp,
-                        color = Color.White
+                        color = Color.White.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
