@@ -28,7 +28,7 @@ class PlayerViewModel @Inject constructor(
     val musicQueue = musicRepository.queue
 
     val currentTrack = musicState.combine(musicQueue) { state, queue ->
-        state?.let { queue.get(it.currentIndex) }
+        state?.let { queue.getOrNull(it.currentIndex) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun fetchCurrentState() {

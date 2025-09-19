@@ -70,19 +70,17 @@ class DataLayerHelper @Inject constructor(context: Context) {
         this.musicService = musicService
     }
 
-    fun sendCurrentState() {
+    fun sendCurrentState(snapshot: PlayerSnapshot? = null) {
         scope.launch {
             try {
+                val playerSnapshot = snapshot ?: buildSnapshot()
                 val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
-                    val queue = playerConnection?.queueWindows?.value
-                    dataMap.putInt("queueHash", queue.hashCode())
-                    dataMap.putInt("queueSize", queue?.size ?: 0)
-                    dataMap.putInt("currentIndex", playerConnection?.currentWindowIndex?.value ?: 0)
-                    dataMap.putBoolean("isPlaying", playerConnection?.isPlaying?.value ?: false)
+                    dataMap.putLong("queueHash", playerSnapshot.queueHash)
+                    dataMap.putInt("queueSize", playerSnapshot.queueSize)
+                    dataMap.putInt("currentIndex", playerSnapshot.currentIndex)
+                    dataMap.putBoolean("isPlaying", playerSnapshot.isPlaying)
                 }.asPutDataRequest()
-                val stringPayload = playerConnection?.let {
-                    "currentIndex=${it.currentWindowIndex.value},queueSize=${it.queueWindows.value.size},isPlaying=${it.isPlaying.value},queueHash=${it.queueWindows.hashCode()}"
-                } ?: "null playerConnection"
+                val stringPayload = "currentIndex=${playerSnapshot.currentIndex},queueSize=${playerSnapshot.queueSize},isPlaying=${playerSnapshot.isPlaying},queueHash=${playerSnapshot.queueHash}"
                 // Send data through Data Layer
                 dataClient.putDataItem(putDataRequest).addOnSuccessListener {
                     Timber.tag("DataLayerHelper").d("Current state sent via Data Layer: ${stringPayload}")
@@ -100,12 +98,10 @@ class DataLayerHelper @Inject constructor(context: Context) {
     }
 
     private fun getPaginatedQueue(start: Int, end: Int, requestId: Long): MusicQueue? {
-        playerConnection?.let { connection ->
+        return playerConnection?.let { connection ->
             val queue = connection.queueWindows.value
             val paginatedQueue = constructMusicQueue(queue, start, end, requestId)
             return paginatedQueue
-        } ?: run {
-            return null
         }
     }
 
@@ -116,13 +112,13 @@ class DataLayerHelper @Inject constructor(context: Context) {
         requestId: Long
     ): MusicQueue {
         if (queue.isEmpty()) {
-            return MusicQueue(queue.hashCode(), emptyMap(), emptyMap(), 0, 0, requestId)
+            return MusicQueue(playerConnection?.currentQueueHash?.value ?: 0L, emptyMap(), emptyMap(), 0, 0, requestId)
         }
 
         val safeStart = start.coerceIn(0, queue.size)
         val safeEnd = end.coerceIn(safeStart, queue.size)
         if (safeStart == safeEnd) {
-            return MusicQueue(queue.hashCode(), emptyMap(), emptyMap(), safeStart, safeEnd, requestId)
+            return MusicQueue(playerConnection?.currentQueueHash?.value ?: 0L, emptyMap(), emptyMap(), safeStart, safeEnd, requestId)
         }
 
         val subQueue = queue.subList(safeStart, safeEnd)
@@ -162,7 +158,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
             trackList.size,
             artworkMap.size
         )
-        return MusicQueue(queue.hashCode(), trackList, artworkMap, safeStart, safeEnd, requestId)
+        return MusicQueue(playerConnection?.currentQueueHash?.value ?: 0L, trackList, artworkMap, safeStart, safeEnd, requestId)
     }
 
     fun sendDataMap(putDataMapRequest: PutDataMapRequest) {
@@ -181,14 +177,21 @@ class DataLayerHelper @Inject constructor(context: Context) {
             playerConnection?.let { connection ->
                 combine(
                     connection.isPlaying,
-                    connection.mediaMetadata
-                ) { isPlaying, mediaMetadata ->
-                    isPlaying to mediaMetadata
+                    connection.currentWindowIndex,
+                    connection.queueWindows,
+                    connection.currentQueueHash
+                ) { isPlaying, currentIndex, queueWindows, queueHash ->
+                    PlayerSnapshot(
+                        queueHash = queueHash,
+                        queueSize = queueWindows.size,
+                        currentIndex = currentIndex.coerceAtLeast(0),
+                        isPlaying = isPlaying
+                    )
                 }
-                .distinctUntilChanged() // Only emit if the values have changed
-                .debounce(300) // Debounce to limit the rate of emissions
-                .collect {
-                    sendCurrentState()
+                .distinctUntilChanged()
+                .debounce(200)
+                .collect { snapshot ->
+                    sendCurrentState(snapshot)
                 }
             }
         }
@@ -197,6 +200,16 @@ class DataLayerHelper @Inject constructor(context: Context) {
     private fun stopObservingCurrentWindowIndex() {
         currentWindowIndexJob?.cancel()
         currentWindowIndexJob = null
+    }
+
+    private fun buildSnapshot(): PlayerSnapshot {
+        val queue = playerConnection?.queueWindows?.value
+        return PlayerSnapshot(
+            queueHash = playerConnection?.currentQueueHash?.value ?: 0L,
+            queueSize = queue?.size ?: 0,
+            currentIndex = (playerConnection?.currentWindowIndex?.value ?: 0).coerceAtLeast(0),
+            isPlaying = playerConnection?.isPlaying?.value ?: false
+        )
     }
 
     @SuppressLint("NewApi")
@@ -347,3 +360,10 @@ class DataLayerHelper @Inject constructor(context: Context) {
 //        }
 //    }
 }
+
+private data class PlayerSnapshot(
+    val queueHash: Long,
+    val queueSize: Int,
+    val currentIndex: Int,
+    val isPlaying: Boolean
+)

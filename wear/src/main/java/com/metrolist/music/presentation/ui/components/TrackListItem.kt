@@ -3,6 +3,7 @@ package com.metrolist.music.presentation.ui.components
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,57 +28,89 @@ import com.metrolist.music.common.models.TrackInfo
 
 @Composable
 fun TrackListItem(
-    trackInfo: TrackInfo,
+    trackInfo: TrackInfo?,
     isPlaying: Boolean,
     passiveColor: Color,
     activeColor: Color,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .padding(8.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                color = if (isPlaying) activeColor else passiveColor
-            )
-            .clickable(onClick = onClick)
-    ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(trackInfo.artworkUrl)
-                .apply {
-                    memoryCacheKey(trackInfo.artworkUrl)
-                    diskCacheKey(trackInfo.artworkUrl)
-                }
-                .crossfade(1000)
-                .bitmapConfig(Bitmap.Config.RGB_565)
-                .build(),
-            contentDescription = "Album Artwork",
-            modifier = Modifier
-                .padding(8.dp)
-                .height(32.dp)
-                .width(32.dp)
-                .clip(RoundedCornerShape(10.dp))
+    val isPlaceholder = trackInfo == null
+    var containerModifier = Modifier
+        .padding(8.dp)
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(16.dp))
+        .background(
+            color = if (isPlaying) activeColor else passiveColor
         )
-        Column {
-            Text(
-                text = trackInfo.trackName,
-                fontSize = 14.sp,
-                maxLines = 1,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
+
+    if (!isPlaceholder) {
+        containerModifier = containerModifier.clickable(onClick = onClick)
+    }
+
+    Row(
+        modifier = containerModifier
+    ) {
+        if (isPlaceholder) {
+            Box(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .height(32.dp)
+                    .width(32.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
             )
-            val albumArtistText = listOfNotNull(
-                trackInfo.artistName.takeIf { it.isNotEmpty()},
-                trackInfo.albumName.takeIf { it.isNotEmpty() }
-            ).joinToString(" - ")
-            albumArtistText.takeIf { it.isNotEmpty() }?.let {
+        } else {
+            val artworkUrl = trackInfo.artworkUrl
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(artworkUrl)
+                    .apply {
+                        memoryCacheKey(artworkUrl)
+                        diskCacheKey(artworkUrl)
+                    }
+                    .crossfade(1000)
+                    .bitmapConfig(Bitmap.Config.RGB_565)
+                    .build(),
+                contentDescription = "Album Artwork",
+                modifier = Modifier
+                    .padding(8.dp)
+                    .height(32.dp)
+                    .width(32.dp)
+                    .clip(RoundedCornerShape(10.dp))
+            )
+        }
+        Column {
+            if (isPlaceholder) {
                 Text(
-                    text = albumArtistText,
-                    fontSize = 10.sp,
-                    color = Color.White
+                    text = "Loading...",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontWeight = FontWeight.Medium
                 )
+                Text(
+                    text = "Fetching details",
+                    fontSize = 10.sp,
+                    color = Color.White.copy(alpha = 0.4f)
+                )
+            } else {
+                Text(
+                    text = trackInfo.trackName,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+                val albumArtistText = listOfNotNull(
+                    trackInfo.artistName.takeIf { it.isNotEmpty() },
+                    trackInfo.albumName.takeIf { it.isNotEmpty() }
+                ).joinToString(" - ")
+                albumArtistText.takeIf { it.isNotEmpty() }?.let {
+                    Text(
+                        text = albumArtistText,
+                        fontSize = 10.sp,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

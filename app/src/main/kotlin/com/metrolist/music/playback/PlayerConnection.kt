@@ -60,6 +60,7 @@ class PlayerConnection(
         }
 
     val queueTitle = MutableStateFlow<String?>(null)
+    val currentQueueHash = MutableStateFlow(System.currentTimeMillis())
     val queueWindows = MutableStateFlow<List<Timeline.Window>>(emptyList())
     val currentMediaItemIndex = MutableStateFlow(-1)
     val currentWindowIndex = MutableStateFlow(-1)
@@ -88,10 +89,12 @@ class PlayerConnection(
     }
 
     fun playQueue(queue: Queue) {
+        currentQueueHash.value = System.currentTimeMillis()
         service.playQueue(queue)
     }
 
     fun startRadioSeamlessly() {
+        currentQueueHash.value = System.currentTimeMillis()
         service.startRadioSeamlessly()
     }
 
@@ -104,6 +107,7 @@ class PlayerConnection(
     fun addToQueue(item: MediaItem) = addToQueue(listOf(item))
 
     fun addToQueue(items: List<MediaItem>) {
+        currentQueueHash.value = System.currentTimeMillis()
         service.addToQueue(items)
     }
 
@@ -153,6 +157,9 @@ class PlayerConnection(
         queueTitle.value = service.queueTitle
         currentMediaItemIndex.value = player.currentMediaItemIndex
         currentWindowIndex.value = player.getCurrentQueueIndex()
+        if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED || reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
+            currentQueueHash.value = System.currentTimeMillis()
+        }
         updateCanSkipPreviousAndNext()
     }
 

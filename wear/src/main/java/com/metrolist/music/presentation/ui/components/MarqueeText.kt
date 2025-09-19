@@ -18,9 +18,9 @@ import androidx.wear.compose.material3.Text
 @Composable
 fun MarqueeText(
     text: String,
+    modifier: Modifier = Modifier,
     fontColor: Color = MaterialTheme.colorScheme.onSurface,
     fontSize: TextUnit,
-    modifier: Modifier = Modifier,
     fontWeight: FontWeight = FontWeight.Normal
 ) {
     AnimatedContent(

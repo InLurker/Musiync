@@ -66,7 +66,7 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                         // Create a main DataMap request.
                         val request = PutDataMapRequest.create(DataLayerPathEnum.QUEUE_RESPONSE.path)
                         val dataMap = request.dataMap
-                        dataMap.putInt("queueHash", queue.queueHash)
+                        dataMap.putLong("queueHash", queue.queueHash)
                         dataMap.putInt("startIndex", queue.startIndex)
                         dataMap.putInt("endIndexExclusive", queue.endIndexExclusive)
                         dataMap.putLong("requestId", queue.requestId)

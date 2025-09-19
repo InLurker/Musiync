@@ -5,13 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.foundation.lazy.itemsIndexed
+import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import com.metrolist.music.presentation.ui.components.TrackListItem
 import com.metrolist.music.presentation.viewmodel.PlayerViewModel
@@ -27,50 +26,41 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     val musicState by viewModel.musicState.collectAsState()
     val accentColor by viewModel.accentColor.collectAsState()
 
-    // Sort tracks by their index and keep track of absolute indices
-    val queueEntries = remember(musicQueue) {
-        musicQueue.toList().sortedBy { it.first }
-    }
-
     // Scroll state for the ScalingLazyColumn
     val lazyListState = rememberScalingLazyListState()
 
     // Scroll to the current track when the music state changes
-    LaunchedEffect(musicState?.currentIndex, queueEntries) {
+    val queueSize = musicState?.queueSize ?: musicQueue.size
+
+    LaunchedEffect(musicState?.currentIndex, queueSize, musicQueue) {
         val currentIndex = musicState?.currentIndex ?: return@LaunchedEffect
-        val position = queueEntries.indexOfFirst { it.first == currentIndex }
-        if (position == -1) {
+        if (queueSize <= 0) return@LaunchedEffect
+
+        if (musicQueue.getOrNull(currentIndex) == null) {
             viewModel.ensureQueueForIndex(currentIndex)
-            return@LaunchedEffect
         }
+
         runCatching {
-            lazyListState.scrollToItem(position)
+            lazyListState.scrollToItem(currentIndex.coerceIn(0, queueSize - 1))
         }
     }
 
-    val queueSize = musicState?.queueSize ?: 0
-    LaunchedEffect(lazyListState, queueEntries.size, queueSize) {
+    LaunchedEffect(lazyListState, musicQueue, queueSize) {
         snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
             .filter { it.isNotEmpty() }
             .map { items ->
                 val firstPos = items.minOf { it.index }.coerceAtLeast(0)
                 val lastPos = items.maxOf { it.index }.coerceAtLeast(firstPos)
-                val firstAbsolute = queueEntries.getOrNull(firstPos)?.first
-                val lastAbsolute = queueEntries.getOrNull(lastPos)?.first
-                Pair(firstAbsolute, lastAbsolute)
+                Pair(firstPos, lastPos)
             }
             .distinctUntilChanged()
-            .collectLatest { (firstAbsolute, lastAbsolute) ->
+            .collectLatest { (firstVisible, lastVisible) ->
                 if (queueSize <= 0) return@collectLatest
-                firstAbsolute?.let { index ->
-                    if (index > 0) {
-                        viewModel.ensureQueueForIndex(index - 1)
-                    }
+                if (firstVisible > 0) {
+                    viewModel.ensureQueueForIndex(firstVisible - 1)
                 }
-                lastAbsolute?.let { index ->
-                    if (index < queueSize - 1) {
-                        viewModel.ensureQueueForIndex(index + 1)
-                    }
+                if (lastVisible < queueSize - 1) {
+                    viewModel.ensureQueueForIndex(lastVisible + 1)
                 }
             }
     }
@@ -86,14 +76,20 @@ fun QueueScreen(viewModel: PlayerViewModel) {
         val activeColor = accentColor?.let {
             lerp(Color.Black, it, 0.5f)
         } ?: Color.White.copy(alpha = 0.35f)
-        itemsIndexed(queueEntries, key = { _, entry -> entry.first }) { position, entry ->
-            val (absoluteIndex, track) = entry
+        items(queueSize, key = { it }) { absoluteIndex ->
+            val track = musicQueue.getOrNull(absoluteIndex)
             TrackListItem(
                 trackInfo = track,
                 isPlaying = absoluteIndex == musicState?.currentIndex,
                 passiveColor = passiveColor,
                 activeColor = activeColor,
-                onClick = { viewModel.onQueueItemSelected(absoluteIndex) }
+                onClick = {
+                    if (track != null) {
+                        viewModel.onQueueItemSelected(absoluteIndex)
+                    } else {
+                        viewModel.ensureQueueForIndex(absoluteIndex)
+                    }
+                }
             )
         }
     }
