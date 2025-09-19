@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import androidx.core.graphics.createBitmap
 import kotlin.math.max
 
 
@@ -23,7 +24,7 @@ fun transformBitmap(source: Bitmap, targetSize: Int): Bitmap {
         )
     }
 
-    return Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.RGB_565).apply {
+    return createBitmap(targetSize, targetSize, Bitmap.Config.RGB_565).apply {
         Canvas(this).apply {
             drawBitmap(source, matrix, Paint().apply {
                 isFilterBitmap = true

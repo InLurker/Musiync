@@ -3,7 +3,6 @@ package com.metrolist.music.wear
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,7 +20,6 @@ import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
-import com.metrolist.music.wear.helper.calculateSampleSize
 import com.metrolist.music.wear.helper.transformBitmap
 import com.metrolist.music.wear.model.MusicQueue
 import com.metrolist.music.wear.model.TrackInfo
@@ -36,7 +34,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -134,22 +131,9 @@ class DataLayerHelper @Inject constructor(context: Context) {
 
             if (!artworkMap.containsKey(artworkUri)) {
                 var source: String? = null
-                val embedded = mediaMetadata.artworkData
-                val useEmbedded = embedded != null && embedded.size >= 4096
-                if (useEmbedded) {
-                    generateResizedAssetFromByteArray(400, embedded!!)?.let { asset ->
-                        artworkMap[artworkUri] = asset
-                        source = "embedded"
-                    }
-                }
-                if (!useEmbedded) {
-                    if (artworkUri.isNotBlank()) {
-                        // Fallback to fetching by URL when embedded art is missing/small
-                        fetchAssetFromUrl(artworkUri, 400)?.let { asset ->
-                            artworkMap[artworkUri] = asset
-                            source = "url"
-                        }
-                    }
+                fetchAssetFromUrl(artworkUri, 400)?.let { asset ->
+                    artworkMap[artworkUri] = asset
+                    source = "url"
                 }
                 Timber.tag("Wear-Queue").d(
                     "Artwork asset %s index=%d urlLen=%d blank=%s",
@@ -210,7 +194,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
             val result = coil.execute(
                 ImageRequest.Builder(musicService)
                     .data(url)
-                    .allowHardware(false)
+                    .allowHardware(true)
                     .build()
             )
             val bmp = result.image?.toBitmap() ?: return@runBlocking null
@@ -351,30 +335,4 @@ class DataLayerHelper @Inject constructor(context: Context) {
 //            }
 //        }
 //    }
-
-    @SuppressLint("NewApi")
-    fun generateResizedAssetFromByteArray(size: Int, byteArray: ByteArray): Asset? {
-        if (byteArray.isEmpty()) return null
-
-        return try {
-            val source = ImageDecoder.createSource(ByteBuffer.wrap(byteArray))
-            val decodedBitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
-
-                // Calculate sample size based on original dimensions
-                val (originalWidth, originalHeight) = info.size.run { width to height }
-                decoder.setTargetSampleSize(calculateSampleSize(originalWidth, originalHeight, size))
-            }
-
-            // Use matrix transformation for scaling and cropping
-            val result = transformBitmap(decodedBitmap, size)
-
-            ByteArrayOutputStream().use { stream ->
-                result.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
-                Asset.createFromBytes(stream.toByteArray())
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
 }
