@@ -5,5 +5,7 @@ enum class WearCommandEnum {
     NEXT,
     PREVIOUS,
     REQUEST_STATE,
-    REQUEST_QUEUE
+    REQUEST_QUEUE,
+    PLAY_PLAYLIST,
+    ADD_PLAYLIST_TO_QUEUE
 }

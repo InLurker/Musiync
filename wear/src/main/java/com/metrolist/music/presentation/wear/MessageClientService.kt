@@ -8,6 +8,8 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.metrolist.music.common.enumerated.MessageClientPathEnum
 import com.metrolist.music.common.enumerated.WearCommandEnum
+import com.metrolist.music.shared.model.PlaylistSummary
+import com.metrolist.music.shared.model.toProto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -58,6 +60,26 @@ class MessageClientService @Inject constructor(context: Context): MessageClient.
 
     fun sendSeekToIndex(index: Int) {
         sendMessage(MessageClientPathEnum.SEEK_TO_INDEX.path, index.toString().toByteArray())
+    }
+
+    fun requestPlaylistLibrary(requestId: Long) {
+        sendMessage(
+            MessageClientPathEnum.REQUEST_PLAYLIST_LIBRARY.path,
+            requestId.toString().toByteArray()
+        )
+    }
+
+    fun requestPlaylistSearch(requestId: Long, query: String) {
+        val payload = "$requestId|$query"
+        sendMessage(
+            MessageClientPathEnum.REQUEST_PLAYLIST_SEARCH.path,
+            payload.toByteArray()
+        )
+    }
+
+    fun playPlaylist(playlistSummary: PlaylistSummary) {
+        val payload = playlistSummary.toProto().toByteArray()
+        sendMessage(MessageClientPathEnum.PLAY_PLAYLIST.path, payload)
     }
 
     fun sendHeartbeatPing() {

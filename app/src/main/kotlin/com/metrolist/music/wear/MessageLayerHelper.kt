@@ -22,7 +22,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelper: DataLayerHelper) : OnMessageReceivedListener {
+class MessageLayerHelper @Inject constructor(
+    context: Context,
+    val dataLayerHelper: DataLayerHelper,
+    private val wearPlaylistRepository: WearPlaylistRepository,
+) : OnMessageReceivedListener {
 
     var playerConnection by mutableStateOf<PlayerConnection?>(null)
     private val messageClient: MessageClient = Wearable.getMessageClient(context)
@@ -95,6 +99,28 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
                         dataLayerHelper.sendDataMap(request)
                     }
                 }
+                MessageLayerPathEnum.REQUEST_PLAYLIST_LIBRARY.path -> {
+                    val payload = messageEvent.data?.toString(Charsets.UTF_8)
+                    val requestId = payload?.toLongOrNull() ?: System.currentTimeMillis()
+                    Timber.tag("Wear-Playlists").d("Received library request id=$requestId")
+                    wearPlaylistRepository.handleLibraryRequest(requestId)
+                }
+                MessageLayerPathEnum.REQUEST_PLAYLIST_SEARCH.path -> {
+                    val payload = messageEvent.data?.toString(Charsets.UTF_8).orEmpty()
+                    val (requestId, query) = parseSearchPayload(payload)
+                    Timber.tag("Wear-Playlists").d("Received search request id=$requestId query='$query'")
+                    wearPlaylistRepository.handleSearchRequest(query, requestId)
+                }
+                MessageLayerPathEnum.PLAY_PLAYLIST.path -> {
+                    runCatching {
+                        com.metrolist.music.datastore.PlaylistSummaryProto.parseFrom(messageEvent.data)
+                    }.onSuccess { proto ->
+                        Timber.tag("Wear-Playlists").d("Play playlist command for id=${proto.id}")
+                        wearPlaylistRepository.handlePlayPlaylist(proto, playerConnection)
+                    }.onFailure {
+                        Timber.tag("Wear-Playlists").e(it, "Failed to parse playlist payload")
+                    }
+                }
                 MessageLayerPathEnum.REQUEST_STATE.path -> {
                     dataLayerHelper.sendCurrentState()
                 }
@@ -159,5 +185,13 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
         nodeClient.connectedNodes.addOnSuccessListener { nodes ->
             onResult(nodes.size)
         }.addOnFailureListener { _ -> onResult(0) }
+    }
+
+    private fun parseSearchPayload(payload: String): Pair<Long, String> {
+        if (payload.isEmpty()) return System.currentTimeMillis() to ""
+        val parts = payload.split('|', limit = 2)
+        val requestId = parts.getOrNull(0)?.toLongOrNull() ?: System.currentTimeMillis()
+        val query = parts.getOrNull(1)?.trim().orEmpty()
+        return requestId to query
     }
 }

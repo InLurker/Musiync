@@ -14,11 +14,14 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.DataClient
+import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import com.metrolist.music.datastore.PlaylistCollectionProto
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.PlayerConnection
+import com.metrolist.music.shared.model.PlaylistSummary
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
 import com.metrolist.music.wear.helper.transformBitmap
 import com.metrolist.music.wear.model.MusicQueue
@@ -168,6 +171,31 @@ class DataLayerHelper @Inject constructor(context: Context) {
         }.addOnFailureListener { e ->
             Timber.tag("DataLayerHelper").e(e, "Failed to send DataMap via Data Layer")
         }
+    }
+
+    fun sendPlaylistCollection(
+        playlists: List<PlaylistSummary>,
+        path: DataLayerPathEnum,
+        payload: PlaylistCollectionProto
+    ) {
+        val request = PutDataMapRequest.create(path.path)
+        val dataMap = request.dataMap
+        dataMap.putByteArray("payload", payload.toByteArray())
+        dataMap.putLong("timestamp", System.currentTimeMillis())
+
+        val artworkDataMap = DataMap()
+        playlists.mapNotNull { it.artworkUrl }
+            .distinct()
+            .forEach { url ->
+                fetchAssetFromUrl(url, 300)?.let { asset ->
+                    artworkDataMap.putAsset(url, asset)
+                }
+            }
+        if (!artworkDataMap.isEmpty) {
+            dataMap.putDataMap("artworkAssets", artworkDataMap)
+        }
+
+        sendDataMap(request)
     }
 
     @OptIn(FlowPreview::class)

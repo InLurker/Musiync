@@ -13,6 +13,7 @@ import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
 import com.metrolist.music.wear.DataLayerHelper
 import com.metrolist.music.wear.MessageLayerHelper
+import com.metrolist.music.wear.WearPlaylistRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -87,7 +88,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideMessageLayerHelper(@ApplicationContext context: Context, dataLayerHelper: DataLayerHelper): MessageLayerHelper {
-        return MessageLayerHelper(context, dataLayerHelper)
+    fun provideMessageLayerHelper(
+        @ApplicationContext context: Context,
+        dataLayerHelper: DataLayerHelper,
+        wearPlaylistRepository: WearPlaylistRepository
+    ): MessageLayerHelper {
+        return MessageLayerHelper(context, dataLayerHelper, wearPlaylistRepository)
     }
 }

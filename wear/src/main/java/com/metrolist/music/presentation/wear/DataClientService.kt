@@ -14,7 +14,9 @@ import com.metrolist.music.common.enumerated.DataLayerPathEnum
 import com.metrolist.music.common.models.MusicState
 import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.data.MusicRepository
+import com.metrolist.music.presentation.data.PlaylistRepository
 import com.metrolist.music.presentation.helper.cacheInCoil
+import com.metrolist.music.datastore.PlaylistCollectionProto
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +30,9 @@ import javax.inject.Inject
 class DataClientService : WearableListenerService() {
     @Inject
     lateinit var musicRepository: MusicRepository
+
+    @Inject
+    lateinit var playlistRepository: PlaylistRepository
 
     private lateinit var dataClient: DataClient
 
@@ -54,6 +59,26 @@ class DataClientService : WearableListenerService() {
                                     processQueueResponse(dataItem)
                                 } catch (e: Exception) {
                                     Log.e("WearDataListenerService", "Error processing queue response", e)
+                                }
+                            }
+                        }
+                        DataLayerPathEnum.PLAYLIST_LIBRARY_RESPONSE -> {
+                            val dataItem = DataMapItem.fromDataItem(event.dataItem).dataMap
+                            serviceScope.launch {
+                                try {
+                                    processPlaylistResponse(dataItem, isLibrary = true)
+                                } catch (e: Exception) {
+                                    Log.e("WearDataListenerService", "Error processing playlist library response", e)
+                                }
+                            }
+                        }
+                        DataLayerPathEnum.PLAYLIST_SEARCH_RESPONSE -> {
+                            val dataItem = DataMapItem.fromDataItem(event.dataItem).dataMap
+                            serviceScope.launch {
+                                try {
+                                    processPlaylistResponse(dataItem, isLibrary = false)
+                                } catch (e: Exception) {
+                                    Log.e("WearDataListenerService", "Error processing playlist search response", e)
                                 }
                             }
                         }
@@ -131,5 +156,16 @@ class DataClientService : WearableListenerService() {
             }
         }
         return bitmaps
+    }
+
+    private suspend fun processPlaylistResponse(dataMap: DataMap, isLibrary: Boolean) {
+        val payloadBytes = dataMap.getByteArray("payload") ?: return
+        val proto = PlaylistCollectionProto.parseFrom(payloadBytes)
+        val artworks = dataMap.getDataMap("artworkAssets")?.let { extractArtworkAssetsFromDataMap(it) } ?: emptyMap()
+        if (isLibrary) {
+            playlistRepository.handleLibraryResponse(proto, artworks)
+        } else {
+            playlistRepository.handleSearchResponse(proto, artworks)
+        }
     }
 }

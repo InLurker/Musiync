@@ -108,6 +108,8 @@ dependencies {
     implementation(libs.androidx.datastore.core.android)
     implementation(libs.androidx.material3.android)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.wear.input)
+    implementation(project(":shared"))
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.compose.ui.tooling)
@@ -117,7 +119,7 @@ dependencies {
     implementation(libs.hilt.navigation)
     implementation(libs.hilt)
     implementation(libs.datastore)
-    implementation(libs.protobuf.javalite)
+
 
     ksp(libs.hilt.compiler)
 }
