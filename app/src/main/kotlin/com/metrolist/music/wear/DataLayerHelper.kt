@@ -275,13 +275,18 @@ class DataLayerHelper @Inject constructor(context: Context) {
     @SuppressLint("NewApi")
     private fun fetchAssetFromUrl(url: String, targetSize: Int): Asset? = runBlocking {
         return@runBlocking try {
-            val result = coil.execute(
+            var bmp: Bitmap? = null
+            // this shit bad code, if phone nuked cache it will cause thread blocking -> latency
+            coil.execute(
                 ImageRequest.Builder(musicService)
                     .data(url)
                     .allowHardware(true)
+                    .target(
+                        onSuccess = { bmp = it.toBitmap() }
+                    )
                     .build()
             )
-            val bmp = result.image?.toBitmap() ?: return@runBlocking null
+            if (bmp == null) return@runBlocking null
             val resized = transformBitmap(bmp, targetSize)
             ByteArrayOutputStream().use { stream ->
                 resized.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
