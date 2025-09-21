@@ -28,7 +28,6 @@ import androidx.wear.compose.material3.Text
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
-import coil3.request.allowHardware
 import coil3.request.bitmapConfig
 import coil3.request.crossfade
 import com.metrolist.music.common.models.TrackInfo
@@ -57,7 +56,6 @@ fun TrackListItem(
                 .data(artworkBitmap ?: trackInfo.artworkUrl)
                 .crossfade(1000)
                 .bitmapConfig(Bitmap.Config.RGB_565)
-                .allowHardware(false)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .build(),
             contentDescription = "Album Artwork",

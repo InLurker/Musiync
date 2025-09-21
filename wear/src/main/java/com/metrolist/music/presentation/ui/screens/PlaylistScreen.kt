@@ -7,29 +7,36 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.CompactButton
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import androidx.wear.input.RemoteInputIntentHelper
+import com.metrolist.music.R
 import com.metrolist.music.presentation.ui.components.LibraryEntryListItem
 import com.metrolist.music.presentation.ui.components.PlaylistListItem
 import com.metrolist.music.presentation.viewmodel.PlaylistViewModel
@@ -192,22 +199,48 @@ private fun SearchControls(
         animationSpec = tween(durationMillis = 1000)
     )
     Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Button(onClick = onSearchClicked,
-            colors = ButtonDefaults.buttonColors(animatedColor),
-            modifier = Modifier
-                .weight(1f)
-        ) {
-            val label = if (query.isBlank()) "Search" else query
-            Text(text = label, maxLines = 1)
+        if (query.isNotBlank()) {
+            CompactButton(
+                onClick = onSearchClicked,
+                colors = ButtonDefaults.buttonColors(Color.Black.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, animatedColor),
+                modifier = Modifier.height(IntrinsicSize.Max)
+            ) {
+                Text(
+                    text = query,
+                    color = Color.White,
+                    maxLines = 1,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .fillMaxWidth()
+                )
+            }
         }
         if (query.isNotBlank()) {
-            Button(onClick = onClearQuery) {
-                Text(text = "Clear")
+            CompactButton(
+                onClick = onClearQuery,
+                colors = ButtonDefaults.buttonColors(animatedColor),
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.close),
+                    contentDescription = "Clear"
+                )
+            }
+        } else {
+            CompactButton(
+                onClick = onSearchClicked,
+                colors = ButtonDefaults.buttonColors(animatedColor),
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.search),
+                    contentDescription = "Search"
+                )
             }
         }
     }
