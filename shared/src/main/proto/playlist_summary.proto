@@ -22,3 +22,30 @@ message PlaylistCollectionProto {
   string source = 3;
   int64 generated_at = 4;
 }
+
+message LibraryEntryProto {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    PLAYLIST = 1;
+    ALBUM = 2;
+    ARTIST = 3;
+    SONG = 4;
+  }
+
+  Type type = 1;
+  string id = 2;
+  string title = 3;
+  string subtitle = 4;
+  string artwork_url = 5;
+  bool is_local = 6;
+  string browse_id = 7;
+  string play_endpoint_params = 8;
+  string shuffle_endpoint_params = 9;
+  string radio_endpoint_params = 10;
+}
+
+message LibrarySnapshotProto {
+  repeated LibraryEntryProto entries = 1;
+  uint64 request_id = 2;
+  int64 generated_at = 3;
+}

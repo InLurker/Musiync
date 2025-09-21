@@ -146,12 +146,26 @@ fun QueueScreen(viewModel: PlayerViewModel) {
             ) {
                 items(displayedIndices, key = { it }) { index ->
                     val track = musicQueue[index]
+                    if (track == null) {
+                        // Placeholder for pending items
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(vertical = 8.dp)
+                                .padding(horizontal = 8.dp)
+                                .zIndex(0f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "Loading...", color = Color.White.copy(alpha = 0.6f))
+                        }
+                        return@items
+                    }
                     TrackListItem(
                         trackInfo = track,
                         isPlaying = index == musicState?.currentIndex,
                         passiveColor = passiveColor,
                         activeColor = activeColor,
-                        artworkBitmap = track?.artworkUrl?.let { artworkBitmaps[it] },
+                        artworkBitmap = artworkBitmaps[track.artworkUrl],
                         onClick = { viewModel.onQueueItemSelected(index) }
                     )
                 }

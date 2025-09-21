@@ -3,6 +3,7 @@ package com.metrolist.music.wear
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,12 +18,15 @@ import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import com.metrolist.music.datastore.LibrarySnapshotProto
 import com.metrolist.music.datastore.PlaylistCollectionProto
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.PlayerConnection
+import com.metrolist.music.shared.model.LibraryEntry
 import com.metrolist.music.shared.model.PlaylistSummary
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
+import com.metrolist.music.wear.helper.calculateSampleSize
 import com.metrolist.music.wear.helper.transformBitmap
 import com.metrolist.music.wear.model.MusicQueue
 import com.metrolist.music.wear.model.TrackInfo
@@ -30,13 +34,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -66,6 +74,8 @@ class DataLayerHelper @Inject constructor(context: Context) {
     lateinit var database: MusicDatabase
 
     lateinit var musicService: MusicService
+    private val sendStateMutex = Mutex()
+    private var pendingSendRequest = false
 
     private val coil = context.imageLoader
 
@@ -75,23 +85,33 @@ class DataLayerHelper @Inject constructor(context: Context) {
 
     fun sendCurrentState(snapshot: PlayerSnapshot? = null) {
         scope.launch {
-            try {
-                val playerSnapshot = snapshot ?: buildSnapshot()
-                val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
-                    dataMap.putLong("queueHash", playerSnapshot.queueHash)
-                    dataMap.putInt("queueSize", playerSnapshot.queueSize)
-                    dataMap.putInt("currentIndex", playerSnapshot.currentIndex)
-                    dataMap.putBoolean("isPlaying", playerSnapshot.isPlaying)
-                }.asPutDataRequest()
-                val stringPayload = "currentIndex=${playerSnapshot.currentIndex},queueSize=${playerSnapshot.queueSize},isPlaying=${playerSnapshot.isPlaying},queueHash=${playerSnapshot.queueHash}"
-                // Send data through Data Layer
-                dataClient.putDataItem(putDataRequest).addOnSuccessListener {
-                    Timber.tag("DataLayerHelper").d("Current state sent via Data Layer: ${stringPayload}")
-                }.addOnFailureListener { e ->
-                    Timber.tag("DataLayerHelper").e(e, "Failed to send current state via Data Layer")
+            sendStateMutex.withLock {
+                if (pendingSendRequest) return@launch
+                pendingSendRequest = true
+                delay(500) // Debounce to avoid redundant calls
+                pendingSendRequest = false
+                try {
+                    val playerSnapshot = snapshot ?: buildSnapshot()
+                    val putDataRequest =
+                        PutDataMapRequest.create(DataLayerPathEnum.CURRENT_STATE.path).apply {
+                            dataMap.putLong("queueHash", playerSnapshot.queueHash)
+                            dataMap.putInt("queueSize", playerSnapshot.queueSize)
+                            dataMap.putInt("currentIndex", playerSnapshot.currentIndex)
+                            dataMap.putBoolean("isPlaying", playerSnapshot.isPlaying)
+                        }.asPutDataRequest()
+                    val stringPayload =
+                        "currentIndex=${playerSnapshot.currentIndex},queueSize=${playerSnapshot.queueSize},isPlaying=${playerSnapshot.isPlaying},queueHash=${playerSnapshot.queueHash}"
+                    // Send data through Data Layer
+                    dataClient.putDataItem(putDataRequest).addOnSuccessListener {
+                        Timber.tag("DataLayerHelper")
+                            .d("Current state sent via Data Layer: ${stringPayload}")
+                    }.addOnFailureListener { e ->
+                        Timber.tag("DataLayerHelper")
+                            .e(e, "Failed to send current state via Data Layer")
+                    }
+                } catch (e: Exception) {
+                    Timber.tag("DataLayerHelper").e(e, "Failed to send current state")
                 }
-            } catch (e: Exception) {
-                Timber.tag("DataLayerHelper").e(e, "Failed to send current state")
             }
         }
     }
@@ -140,18 +160,16 @@ class DataLayerHelper @Inject constructor(context: Context) {
             trackList[originalIndex] = TrackInfo(title, artist, albumTitle, artworkUri)
 
             if (!artworkMap.containsKey(artworkUri)) {
-                var source: String? = null
-                fetchAssetFromUrl(artworkUri, 400)?.let { asset ->
-                    artworkMap[artworkUri] = asset
-                    source = "url"
+                mediaMetadata.artworkData?.let { data ->
+                    generateResizedAssetFromByteArray(400, data)?.let { asset ->
+                        artworkMap[artworkUri] = asset
+                    } ?: Timber.tag("Wear-Queue").d(
+                        "Failed to process artwork index=%d urlLen=%d blank=%s",
+                        originalIndex,
+                        artworkUri.length,
+                        artworkUri.isBlank()
+                    )
                 }
-                Timber.tag("Wear-Queue").d(
-                    "Artwork asset %s index=%d urlLen=%d blank=%s",
-                    source ?: "none",
-                    originalIndex,
-                    artworkUri.length,
-                    artworkUri.isBlank()
-                )
             }
         }
         Timber.tag("Wear-Queue").d(
@@ -179,23 +197,37 @@ class DataLayerHelper @Inject constructor(context: Context) {
         payload: PlaylistCollectionProto
     ) {
         val request = PutDataMapRequest.create(path.path)
+        attachPlaylistPayload(request, payload.toByteArray(), playlists.mapNotNull { it.artworkUrl })
+        sendDataMap(request)
+    }
+
+    fun sendLibrarySnapshot(
+        entries: List<LibraryEntry>,
+        payload: LibrarySnapshotProto
+    ) {
+        val request = PutDataMapRequest.create(DataLayerPathEnum.PLAYLIST_LIBRARY_RESPONSE.path)
+        attachPlaylistPayload(request, payload.toByteArray(), entries.mapNotNull { it.artworkUrl })
+        sendDataMap(request)
+    }
+
+    private fun attachPlaylistPayload(
+        request: PutDataMapRequest,
+        payload: ByteArray,
+        artworkUrls: List<String>
+    ) {
         val dataMap = request.dataMap
-        dataMap.putByteArray("payload", payload.toByteArray())
+        dataMap.putByteArray("payload", payload)
         dataMap.putLong("timestamp", System.currentTimeMillis())
 
         val artworkDataMap = DataMap()
-        playlists.mapNotNull { it.artworkUrl }
-            .distinct()
-            .forEach { url ->
-                fetchAssetFromUrl(url, 300)?.let { asset ->
-                    artworkDataMap.putAsset(url, asset)
-                }
+        artworkUrls.distinct().forEach { url ->
+            fetchAssetFromUrl(url, 300)?.let { asset ->
+                artworkDataMap.putAsset(url, asset)
             }
+        }
         if (!artworkDataMap.isEmpty) {
             dataMap.putDataMap("artworkAssets", artworkDataMap)
         }
-
-        sendDataMap(request)
     }
 
     @OptIn(FlowPreview::class)
@@ -261,132 +293,38 @@ class DataLayerHelper @Inject constructor(context: Context) {
     }
 
 
-//    fun sendMediaInfo(
-//        title: String,
-//        artist: String,
-//        album: String,
-//        artworkUrl: String,
-//        isPlaying: Boolean
-//    ) {
-//        scope.launch {
-//            try {
-//                val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.SONG_INFO.path).apply {
-//                    dataMap.putString("trackName", title)
-//                    dataMap.putString("artistName", artist)
-//                    dataMap.putString("albumName", album)
-//                    dataMap.putString("artworkUrl", artworkUrl)
-//                    dataMap.putAsset("artworkAsset", fetchBitmapByteFromCoil(artworkUrl, 450))
-//                    dataMap.putBoolean("isPlaying", isPlaying)
-//                }.asPutDataRequest()
-//
-//                // Send data through Data Layer
-//                dataClient.putDataItem(putDataRequest).addOnSuccessListener {
-//                    Timber.tag("DataLayerHelper").d("Song info sent via Data Layer: ${putDataRequest.data}")
-//                }.addOnFailureListener { e ->
-//                    Timber.tag("DataLayerHelper").e(e, "Failed to send song info via Data Layer")
-//                }
-//            } catch (e: Exception) {
-//                Timber.tag("DataLayerHelper").e(e, "Failed to send song info")
-//            }
-//        }
-//    }
+    @SuppressLint("NewApi")
+    fun generateResizedAssetFromByteArray(size: Int, byteArray: ByteArray): Asset? {
+        if (byteArray.isEmpty()) return null
 
-//    private fun sendLikedAlbums() {
-//        scope.launch {
-//            try {
-//                // Collect the albumsLiked flow
-//                database.albumsLiked(AlbumSortType.CREATE_DATE, true).collect { albums ->
-//
-//                    if (albums.isEmpty()) {
-//                        Timber.d("No liked albums found to send.")
-//                        return@collect
-//                    }
-//
-//                    // Convert the list of albums into a DataMapArrayList
-//                    val albumDataMapList = ArrayList<DataMap>()
-//                    albums.forEach { album ->
-//                        val albumDataMap = DataMap().apply {
-//                            putString("id", album.album.id)
-//                            putString("title", album.album.title)
-//                            putString("artist", album.artists.map { it.name }.joinToString(", "))
-//                            putString("artworkUrl", album.album.thumbnailUrl ?: "")
-//                            putAsset("artworkBitmap", fetchBitmapByteFromCoil(album.album.thumbnailUrl, 100))
-//                            putInt("songCount", album.album.songCount)
-//                        }
-//                        albumDataMapList.add(albumDataMap)
-//                    }
-//
-//                    // Prepare and send the DataMapArrayList
-//                    val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.ALBUM_INFO.path).apply {
-//                        dataMap.putDataMapArrayList("albums", albumDataMapList)
-//                    }.asPutDataRequest()
-//
-//                    // Send the data through the Data Layer
-//                    dataClient.putDataItem(putDataRequest).addOnSuccessListener {
-//                        Timber.d("Successfully sent liked album details.")
-//                    }.addOnFailureListener { e ->
-//                        Timber.e(e, "Failed to send liked album details")
-//                    }
-//                }
-//            } catch (e: Exception) {
-//                Timber.e(e, "Error while sending liked albums")
-//            }
-//        }
-//    }
-//
-//    private fun sendBookmarkedArtists() {
-//        scope.launch {
-//            val artists = database.artistsBookmarked(ArtistSortType.CREATE_DATE, true)
-//                .map { list -> list.map { it.artist.name } }
-//                .firstOrNull() ?: emptyList()
-//
-//            val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.ALBUM_INFO.path).apply {
-//                dataMap.putStringArrayList("artists", ArrayList(artists))
-//            }.asPutDataRequest()
-//
-//            dataClient.putDataItem(putDataRequest).addOnSuccessListener { _ ->
-//                Timber.tag("DataLayerHelper").d("Bookmarked artists sent via Data Layer")
-//            }.addOnFailureListener { e ->
-//                Timber.tag("DataLayerHelper").e(e, "Failed to send bookmarked artists via Data Layer")
-//            }
-//        }
-//    }
-//
-//
-//    fun sendAlbumDetails(albumId: String) {
-//        scope.launch {
-//            try {
-//                // Fetch album with songs from the database
-//                val albumWithSongs = database.albumWithSongs(albumId).firstOrNull()
-//
-//                if (albumWithSongs != null) {
-//                    val album = albumWithSongs.album
-//                    val songs = albumWithSongs.songs
-//
-//                    // Prepare data to be sent
-//                    val putDataRequest = PutDataMapRequest.create(DataLayerPathEnum.ALBUM_INFO.path).apply {
-//                        dataMap.putString("albumTitle", album.title)
-//                        dataMap.putString("albumYear", album.year?.toString() ?: "")
-//                        dataMap.putString("albumThumbnail", album.thumbnailUrl ?: "")
-//                        dataMap.putString("albumId", album.id)
-//                        dataMap.putStringArrayList("songTitles", ArrayList(songs.map { it.song.title }))
-//                        dataMap.putStringArrayList("songIds", ArrayList(songs.map { it.song.id }))
-//                    }.asPutDataRequest()
-//
-//                    // Send data through Data Layer
-//                    dataClient.putDataItem(putDataRequest).addOnSuccessListener {
-//                        Timber.tag("DataLayerHelper").d("Album details sent via Data Layer for albumId: $albumId")
-//                    }.addOnFailureListener { e ->
-//                        Timber.tag("DataLayerHelper").e(e, "Failed to send album details via Data Layer")
-//                    }
-//                } else {
-//                    Timber.tag("DataLayerHelper").e("Album with ID $albumId not found in the database.")
-//                }
-//            } catch (e: Exception) {
-//                Timber.tag("DataLayerHelper").e(e, "Failed to send album details")
-//            }
-//        }
-//    }
+        return try {
+            val source = ImageDecoder.createSource(ByteBuffer.wrap(byteArray))
+            val decodedBitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+
+                // Calculate sample size based on original dimensions
+                val (originalWidth, originalHeight) = info.size.run { width to height }
+                decoder.setTargetSampleSize(
+                    calculateSampleSize(
+                        originalWidth,
+                        originalHeight,
+                        size
+                    )
+                )
+            }
+
+            // Use matrix transformation for scaling and cropping
+            val result = transformBitmap(decodedBitmap, size)
+
+            ByteArrayOutputStream().use { stream ->
+                result.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                Asset.createFromBytes(stream.toByteArray())
+            }
+        } catch (e: Exception) {
+            Timber.Forest.tag("DataLayerHelper").e(e, "Failed to generate resized asset from byte array")
+            null
+        }
+    }
 }
 
 data class PlayerSnapshot(

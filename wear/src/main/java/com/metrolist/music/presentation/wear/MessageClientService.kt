@@ -8,6 +8,7 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.metrolist.music.common.enumerated.MessageClientPathEnum
 import com.metrolist.music.common.enumerated.WearCommandEnum
+import com.metrolist.music.shared.model.LibraryEntry
 import com.metrolist.music.shared.model.PlaylistSummary
 import com.metrolist.music.shared.model.toProto
 import kotlinx.coroutines.CoroutineScope
@@ -80,6 +81,11 @@ class MessageClientService @Inject constructor(context: Context): MessageClient.
     fun playPlaylist(playlistSummary: PlaylistSummary) {
         val payload = playlistSummary.toProto().toByteArray()
         sendMessage(MessageClientPathEnum.PLAY_PLAYLIST.path, payload)
+    }
+
+    fun playLibraryEntry(entry: LibraryEntry) {
+        val payload = entry.toProto().toByteArray()
+        sendMessage(MessageClientPathEnum.PLAY_LIBRARY_ENTRY.path, payload)
     }
 
     fun sendHeartbeatPing() {

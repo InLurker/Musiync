@@ -2,16 +2,16 @@ package com.metrolist.music.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.metrolist.music.shared.model.PlaylistSummary
 import com.metrolist.music.presentation.data.PlaylistRepository
 import com.metrolist.music.presentation.wear.MessageClientService
+import com.metrolist.music.shared.model.LibraryEntry
+import com.metrolist.music.shared.model.PlaylistSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
@@ -52,6 +52,10 @@ class PlaylistViewModel @Inject constructor(
 
     fun playPlaylist(playlistSummary: PlaylistSummary) {
         messageClientService.playPlaylist(playlistSummary)
+    }
+
+    fun playLibraryEntry(entry: LibraryEntry) {
+        messageClientService.playLibraryEntry(entry)
     }
 
     @OptIn(FlowPreview::class)

@@ -5,6 +5,8 @@ import android.app.RemoteInput
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,9 +25,12 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import androidx.wear.input.RemoteInputIntentHelper
+import com.metrolist.music.presentation.ui.components.LibraryEntryListItem
 import com.metrolist.music.presentation.ui.components.PlaylistListItem
 import com.metrolist.music.presentation.viewmodel.PlaylistViewModel
 
@@ -79,23 +84,70 @@ fun PlaylistScreen(
 
         item { SectionHeader(text = "Library") }
 
-        if (libraryState.isLoading && libraryState.items.isEmpty()) {
-            item {
-                LoadingIndicator()
+        val hasLibraryContent = libraryState.playlists.isNotEmpty() ||
+            libraryState.albums.isNotEmpty() ||
+            libraryState.artists.isNotEmpty() ||
+            libraryState.songs.isNotEmpty()
+
+        when {
+            libraryState.isLoading && !hasLibraryContent -> {
+                item { LoadingIndicator() }
             }
-        } else if (libraryState.items.isEmpty()) {
-            item {
-                EmptyMessage(text = "No saved playlists")
+            !hasLibraryContent -> {
+                item { EmptyMessage(text = "Library is empty") }
             }
-        } else {
-            items(libraryState.items, key = { it.id }) { playlist ->
-                val artwork = playlist.artworkUrl?.let { artworkCache[it] }
-                PlaylistListItem(
-                    playlist = playlist,
-                    backgroundColor = Color.White.copy(alpha = 0.08f),
-                    artwork = artwork,
-                    onClick = { viewModel.playPlaylist(playlist) }
-                )
+            else -> {
+                if (libraryState.playlists.isNotEmpty()) {
+                    item { SubSectionHeader(text = "Playlists") }
+                    items(libraryState.playlists, key = { "playlist-${it.id}" }) { entry ->
+                        val artwork = entry.artworkUrl?.let { artworkCache[it] }
+                        LibraryEntryListItem(
+                            entry = entry,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            artwork = artwork,
+                            onClick = { viewModel.playLibraryEntry(entry) }
+                        )
+                    }
+                }
+
+                if (libraryState.albums.isNotEmpty()) {
+                    item { SubSectionHeader(text = "Albums") }
+                    items(libraryState.albums, key = { "album-${it.id}" }) { entry ->
+                        val artwork = entry.artworkUrl?.let { artworkCache[it] }
+                        LibraryEntryListItem(
+                            entry = entry,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            artwork = artwork,
+                            onClick = { viewModel.playLibraryEntry(entry) }
+                        )
+                    }
+                }
+
+                if (libraryState.artists.isNotEmpty()) {
+                    item { SubSectionHeader(text = "Artists") }
+                    items(libraryState.artists, key = { "artist-${it.id}" }) { entry ->
+                        val artwork = entry.artworkUrl?.let { artworkCache[it] }
+                        LibraryEntryListItem(
+                            entry = entry,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            artwork = artwork,
+                            onClick = { viewModel.playLibraryEntry(entry) }
+                        )
+                    }
+                }
+
+                if (libraryState.songs.isNotEmpty()) {
+                    item { SubSectionHeader(text = "Songs") }
+                    items(libraryState.songs, key = { "song-${it.id}" }) { entry ->
+                        val artwork = entry.artworkUrl?.let { artworkCache[it] }
+                        LibraryEntryListItem(
+                            entry = entry,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            artwork = artwork,
+                            onClick = { viewModel.playLibraryEntry(entry) }
+                        )
+                    }
+                }
             }
         }
 
@@ -132,15 +184,24 @@ fun PlaylistScreen(
 private fun SearchControls(
     query: String,
     onSearchClicked: () -> Unit,
+    accentColor: Color? = null,
     onClearQuery: () -> Unit
 ) {
+    val animatedColor by animateColorAsState(
+        targetValue = accentColor ?: MaterialTheme.colorScheme.primary,
+        animationSpec = tween(durationMillis = 1000)
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Button(onClick = onSearchClicked, modifier = Modifier.weight(1f)) {
+        Button(onClick = onSearchClicked,
+            colors = ButtonDefaults.buttonColors(animatedColor),
+            modifier = Modifier
+                .weight(1f)
+        ) {
             val label = if (query.isBlank()) "Search" else query
             Text(text = label, maxLines = 1)
         }
@@ -160,6 +221,18 @@ private fun SectionHeader(text: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         color = Color.White.copy(alpha = 0.7f),
+        textAlign = TextAlign.Start
+    )
+}
+
+@Composable
+private fun SubSectionHeader(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 4.dp),
+        color = Color.White.copy(alpha = 0.6f),
         textAlign = TextAlign.Start
     )
 }

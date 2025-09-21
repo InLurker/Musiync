@@ -121,6 +121,16 @@ class MessageLayerHelper @Inject constructor(
                         Timber.tag("Wear-Playlists").e(it, "Failed to parse playlist payload")
                     }
                 }
+                MessageLayerPathEnum.PLAY_LIBRARY_ENTRY.path -> {
+                    runCatching {
+                        com.metrolist.music.datastore.LibraryEntryProto.parseFrom(messageEvent.data)
+                    }.onSuccess { proto ->
+                        Timber.tag("Wear-Playlists").d("Play library entry command type=${proto.type} id=${proto.id}")
+                        wearPlaylistRepository.handlePlayLibraryEntry(proto, playerConnection)
+                    }.onFailure {
+                        Timber.tag("Wear-Playlists").e(it, "Failed to parse library entry payload")
+                    }
+                }
                 MessageLayerPathEnum.REQUEST_STATE.path -> {
                     dataLayerHelper.sendCurrentState()
                 }

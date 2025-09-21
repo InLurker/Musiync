@@ -36,7 +36,9 @@ fun MainScreen(
     val pagerState = rememberPagerState { 4 }
 
     val currentTrack by viewModel.currentTrack.collectAsState()
+    val artworkBitmaps by viewModel.currentArtwork.collectAsState()
 
+    val imageData = artworkBitmaps ?: currentTrack?.artworkUrl
     val reduceMotion = rememberReduceMotionPreference()
 
     CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
@@ -48,7 +50,7 @@ fun MainScreen(
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(currentTrack?.artworkUrl)
+                        .data(imageData)
                         .apply {
                             currentTrack?.artworkUrl?.let { url ->
                                 memoryCacheKey(url)

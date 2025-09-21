@@ -7,6 +7,7 @@ enum class MessageClientPathEnum (val path: String) {
     REQUEST_PLAYLIST_LIBRARY("/request_playlist_library"),
     REQUEST_PLAYLIST_SEARCH("/request_playlist_search"),
     PLAY_PLAYLIST("/play_playlist"),
+    PLAY_LIBRARY_ENTRY("/play_library_entry"),
     SEEK_TO_INDEX("/seek_to_index"),
     HEARTBEAT("/heartbeat");
 

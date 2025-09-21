@@ -1,7 +1,10 @@
 package com.metrolist.music.presentation.data
 
 import android.graphics.Bitmap
+import com.metrolist.music.datastore.LibrarySnapshotProto
 import com.metrolist.music.datastore.PlaylistCollectionProto
+import com.metrolist.music.shared.model.LibraryEntry
+import com.metrolist.music.shared.model.LibraryEntryType
 import com.metrolist.music.shared.model.PlaylistSummary
 import com.metrolist.music.shared.model.toModelList
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,7 +12,18 @@ import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class PlaylistSectionState(
+data class LibraryState(
+    val requestId: Long? = null,
+    val playlists: List<LibraryEntry> = emptyList(),
+    val albums: List<LibraryEntry> = emptyList(),
+    val artists: List<LibraryEntry> = emptyList(),
+    val songs: List<LibraryEntry> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val lastUpdatedAt: Long? = null
+)
+
+data class PlaylistSearchState(
     val requestId: Long? = null,
     val query: String = "",
     val items: List<PlaylistSummary> = emptyList(),
@@ -21,8 +35,8 @@ data class PlaylistSectionState(
 @Singleton
 class PlaylistRepository @Inject constructor() {
 
-    val libraryState = MutableStateFlow(PlaylistSectionState())
-    val searchState = MutableStateFlow(PlaylistSectionState())
+    val libraryState = MutableStateFlow(LibraryState())
+    val searchState = MutableStateFlow(PlaylistSearchState())
     val artworkCache = MutableStateFlow<Map<String, Bitmap?>>(emptyMap())
 
     fun markLibraryLoading(requestId: Long) {
@@ -57,17 +71,26 @@ class PlaylistRepository @Inject constructor() {
         }
     }
 
-    fun handleLibraryResponse(
-        payload: PlaylistCollectionProto,
+    fun handleLibrarySnapshot(
+        payload: LibrarySnapshotProto,
         newArtworks: Map<String, Bitmap?>
     ) {
+        val entries = payload.toModelList()
+        val playlists = entries.filter { it.type == LibraryEntryType.PLAYLIST }
+        val albums = entries.filter { it.type == LibraryEntryType.ALBUM }
+        val artists = entries.filter { it.type == LibraryEntryType.ARTIST }
+        val songs = entries.filter { it.type == LibraryEntryType.SONG }
+
         libraryState.update { current ->
             if (current.requestId != null && payload.requestId < current.requestId) {
                 return@update current
             }
             current.copy(
                 requestId = payload.requestId,
-                items = payload.toModelList(),
+                playlists = playlists,
+                albums = albums,
+                artists = artists,
+                songs = songs,
                 isLoading = false,
                 errorMessage = null,
                 lastUpdatedAt = payload.generatedAt.takeIf { it != 0L }

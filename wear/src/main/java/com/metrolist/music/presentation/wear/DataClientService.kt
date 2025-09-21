@@ -16,6 +16,7 @@ import com.metrolist.music.common.models.TrackInfo
 import com.metrolist.music.presentation.data.MusicRepository
 import com.metrolist.music.presentation.data.PlaylistRepository
 import com.metrolist.music.presentation.helper.cacheInCoil
+import com.metrolist.music.datastore.LibrarySnapshotProto
 import com.metrolist.music.datastore.PlaylistCollectionProto
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -66,9 +67,9 @@ class DataClientService : WearableListenerService() {
                             val dataItem = DataMapItem.fromDataItem(event.dataItem).dataMap
                             serviceScope.launch {
                                 try {
-                                    processPlaylistResponse(dataItem, isLibrary = true)
+                                    processLibrarySnapshot(dataItem)
                                 } catch (e: Exception) {
-                                    Log.e("WearDataListenerService", "Error processing playlist library response", e)
+                                    Log.e("WearDataListenerService", "Error processing library snapshot", e)
                                 }
                             }
                         }
@@ -76,7 +77,7 @@ class DataClientService : WearableListenerService() {
                             val dataItem = DataMapItem.fromDataItem(event.dataItem).dataMap
                             serviceScope.launch {
                                 try {
-                                    processPlaylistResponse(dataItem, isLibrary = false)
+                                    processPlaylistSearchResponse(dataItem)
                                 } catch (e: Exception) {
                                     Log.e("WearDataListenerService", "Error processing playlist search response", e)
                                 }
@@ -158,14 +159,17 @@ class DataClientService : WearableListenerService() {
         return bitmaps
     }
 
-    private suspend fun processPlaylistResponse(dataMap: DataMap, isLibrary: Boolean) {
+    private suspend fun processPlaylistSearchResponse(dataMap: DataMap) {
         val payloadBytes = dataMap.getByteArray("payload") ?: return
         val proto = PlaylistCollectionProto.parseFrom(payloadBytes)
         val artworks = dataMap.getDataMap("artworkAssets")?.let { extractArtworkAssetsFromDataMap(it) } ?: emptyMap()
-        if (isLibrary) {
-            playlistRepository.handleLibraryResponse(proto, artworks)
-        } else {
-            playlistRepository.handleSearchResponse(proto, artworks)
-        }
+        playlistRepository.handleSearchResponse(proto, artworks)
+    }
+
+    private suspend fun processLibrarySnapshot(dataMap: DataMap) {
+        val payloadBytes = dataMap.getByteArray("payload") ?: return
+        val proto = LibrarySnapshotProto.parseFrom(payloadBytes)
+        val artworks = dataMap.getDataMap("artworkAssets")?.let { extractArtworkAssetsFromDataMap(it) } ?: emptyMap()
+        playlistRepository.handleLibrarySnapshot(proto, artworks)
     }
 }
