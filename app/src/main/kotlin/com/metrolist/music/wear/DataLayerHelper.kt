@@ -280,7 +280,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
             coil.execute(
                 ImageRequest.Builder(musicService)
                     .data(url)
-                    .allowHardware(true)
+                    .allowHardware(false)
                     .target(
                         onSuccess = { bmp = it.toBitmap() }
                     )
