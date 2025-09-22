@@ -116,6 +116,7 @@ dependencies {
     debugImplementation(libs.ui.test.manifest)
     debugImplementation(libs.androidx.tiles.tooling)
     implementation(libs.coil)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.hilt.navigation)
     implementation(libs.hilt)
     implementation(libs.datastore)
