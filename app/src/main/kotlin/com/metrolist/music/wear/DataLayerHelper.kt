@@ -276,7 +276,7 @@ class DataLayerHelper @Inject constructor(context: Context) {
     private fun fetchAssetFromUrl(url: String, targetSize: Int): Asset? = runBlocking {
         return@runBlocking try {
             var bmp: Bitmap? = null
-            // this shit bad code, if phone nuked cache it will cause thread blocking -> latency
+            // FIXME: this shit bad code, if phone nuked cache it will cause thread blocking -> latency
             coil.execute(
                 ImageRequest.Builder(musicService)
                     .data(url)
