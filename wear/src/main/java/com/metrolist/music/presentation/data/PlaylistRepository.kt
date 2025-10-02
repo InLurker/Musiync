@@ -7,8 +7,13 @@ import com.metrolist.music.shared.model.LibraryEntry
 import com.metrolist.music.shared.model.LibraryEntryType
 import com.metrolist.music.shared.model.PlaylistSummary
 import com.metrolist.music.shared.model.toModelList
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,11 +38,24 @@ data class PlaylistSearchState(
 )
 
 @Singleton
-class PlaylistRepository @Inject constructor() {
+class PlaylistRepository @Inject constructor(
+    private val dataStoreRepository: DataStoreRepository
+) {
 
     val libraryState = MutableStateFlow(LibraryState())
     val searchState = MutableStateFlow(PlaylistSearchState())
     val artworkCache = MutableStateFlow<Map<String, Bitmap?>>(emptyMap())
+
+    private val repositoryScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        repositoryScope.launch {
+            val cachedSnapshot = runCatching { dataStoreRepository.librarySnapshots.first() }.getOrNull()
+            if (cachedSnapshot != null && cachedSnapshot.entriesCount > 0) {
+                updateStateFromSnapshot(cachedSnapshot, emptyMap(), shouldPersist = false)
+            }
+        }
+    }
 
     fun markLibraryLoading(requestId: Long) {
         libraryState.update { current ->
@@ -75,28 +93,7 @@ class PlaylistRepository @Inject constructor() {
         payload: LibrarySnapshotProto,
         newArtworks: Map<String, Bitmap?>
     ) {
-        val entries = payload.toModelList()
-        val playlists = entries.filter { it.type == LibraryEntryType.PLAYLIST }
-        val albums = entries.filter { it.type == LibraryEntryType.ALBUM }
-        val artists = entries.filter { it.type == LibraryEntryType.ARTIST }
-        val songs = entries.filter { it.type == LibraryEntryType.SONG }
-
-        libraryState.update { current ->
-            if (current.requestId != null && payload.requestId < current.requestId) {
-                return@update current
-            }
-            current.copy(
-                requestId = payload.requestId,
-                playlists = playlists,
-                albums = albums,
-                artists = artists,
-                songs = songs,
-                isLoading = false,
-                errorMessage = null,
-                lastUpdatedAt = payload.generatedAt.takeIf { it != 0L }
-            )
-        }
-        mergeArtworks(newArtworks)
+        updateStateFromSnapshot(payload, newArtworks, shouldPersist = true)
     }
 
     fun handleSearchResponse(
@@ -124,6 +121,41 @@ class PlaylistRepository @Inject constructor() {
                 isLoading = false,
                 errorMessage = message
             )
+        }
+    }
+
+    private fun updateStateFromSnapshot(
+        payload: LibrarySnapshotProto,
+        newArtworks: Map<String, Bitmap?>,
+        shouldPersist: Boolean
+    ) {
+        val entries = payload.toModelList()
+        val playlists = entries.filter { it.type == LibraryEntryType.PLAYLIST }
+        val albums = entries.filter { it.type == LibraryEntryType.ALBUM }
+        val artists = entries.filter { it.type == LibraryEntryType.ARTIST }
+        val songs = entries.filter { it.type == LibraryEntryType.SONG }
+
+        libraryState.update { current ->
+            if (current.requestId != null && payload.requestId < current.requestId) {
+                return@update current
+            }
+            current.copy(
+                requestId = payload.requestId.takeIf { it != 0L } ?: current.requestId,
+                playlists = playlists,
+                albums = albums,
+                artists = artists,
+                songs = songs,
+                isLoading = false,
+                errorMessage = null,
+                lastUpdatedAt = payload.generatedAt.takeIf { it != 0L } ?: current.lastUpdatedAt
+            )
+        }
+        mergeArtworks(newArtworks)
+
+        if (shouldPersist) {
+            repositoryScope.launch {
+                runCatching { dataStoreRepository.persistLibrarySnapshot(payload) }
+            }
         }
     }
 
