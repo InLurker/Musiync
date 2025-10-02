@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -83,43 +84,68 @@ class WearPlaylistRepository @Inject constructor(
     }
 
     private suspend fun buildLibraryEntries(hideExplicit: Boolean): List<LibraryEntry> {
-        val entries = mutableListOf<LibraryEntry>()
+        data class EntryCandidate(val entry: LibraryEntry, val addedAt: LocalDateTime?)
 
-        val playlists = database
+        fun EntryCandidate.fallbackTimestamp(): LocalDateTime = addedAt ?: LocalDateTime.MIN
+
+        val playlistCandidates = database
             .playlists(PlaylistSortType.CREATE_DATE, descending = true)
             .firstOrNull()
             .orEmpty()
+            .map { playlist ->
+                EntryCandidate(
+                    entry = mapLibraryPlaylistEntry(playlist),
+                    addedAt = playlist.playlist.bookmarkedAt ?: playlist.playlist.createdAt
+                )
+            }
+            .sortedByDescending { it.fallbackTimestamp() }
             .take(MAX_PLAYLIST_ITEMS)
-            .map(::mapLibraryPlaylistEntry)
-        entries.addAll(playlists)
 
-        val albums = database
+        val albumCandidates = database
             .albumsLiked(AlbumSortType.CREATE_DATE, descending = true)
             .firstOrNull()
             .orEmpty()
             .filterExplicitAlbums(hideExplicit)
+            .map { album ->
+                EntryCandidate(
+                    entry = mapAlbumEntry(album),
+                    addedAt = album.album.bookmarkedAt
+                )
+            }
+            .sortedByDescending { it.fallbackTimestamp() }
             .take(MAX_ALBUM_ITEMS)
-            .map(::mapAlbumEntry)
-        entries.addAll(albums)
 
-        val artists = database
+        val artistCandidates = database
             .artistsBookmarked(ArtistSortType.CREATE_DATE, true)
             .firstOrNull()
             .orEmpty()
+            .map { artist ->
+                EntryCandidate(
+                    entry = mapArtistEntry(artist),
+                    addedAt = artist.artist.bookmarkedAt
+                )
+            }
+            .sortedByDescending { it.fallbackTimestamp() }
             .take(MAX_ARTIST_ITEMS)
-            .map(::mapArtistEntry)
-        entries.addAll(artists)
 
-        val songs = database
+        val songCandidates = database
             .likedSongs(SongSortType.CREATE_DATE, true)
             .firstOrNull()
             .orEmpty()
             .filterExplicit(hideExplicit)
+            .map { song ->
+                EntryCandidate(
+                    entry = mapSongEntry(song),
+                    addedAt = song.song.likedDate ?: song.song.inLibrary
+                )
+            }
+            .sortedByDescending { it.fallbackTimestamp() }
             .take(MAX_SONG_ITEMS)
-            .map(::mapSongEntry)
-        entries.addAll(songs)
 
-        return entries
+        return (playlistCandidates + albumCandidates + artistCandidates + songCandidates)
+            .sortedByDescending { it.fallbackTimestamp() }
+            .take(MAX_LIBRARY_ITEMS)
+            .map { it.entry }
     }
 
     fun handlePlayPlaylist(summaryProto: PlaylistSummaryProto, playerConnection: PlayerConnection?) {
