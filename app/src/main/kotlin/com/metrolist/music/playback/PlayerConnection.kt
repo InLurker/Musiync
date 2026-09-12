@@ -178,6 +178,7 @@ class PlayerConnection(
         }.stateIn(scope, SharingStarted.Lazily, null)
 
     val queueTitle = MutableStateFlow<String?>(null)
+    val currentQueueHash = MutableStateFlow(System.currentTimeMillis())
     val queueWindows = MutableStateFlow<List<Timeline.Window>>(emptyList())
     val currentMediaItemIndex = MutableStateFlow(-1)
     val currentWindowIndex = MutableStateFlow(-1)
@@ -249,6 +250,7 @@ class PlayerConnection(
             Timber.tag(TAG).w("playQueue called before player ready; delegating to service")
         }
         try {
+            currentQueueHash.value = System.currentTimeMillis()
             service.playQueue(queue)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in playQueue")
@@ -310,6 +312,7 @@ class PlayerConnection(
             return
         }
         try {
+            currentQueueHash.value = System.currentTimeMillis()
             service.addToQueue(items)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in addToQueue")

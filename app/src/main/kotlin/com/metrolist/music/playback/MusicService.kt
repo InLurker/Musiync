@@ -219,6 +219,7 @@ import com.metrolist.music.widget.MetrolistWidgetManager
 import com.metrolist.music.widget.MusicWidgetReceiver
 import com.metrolist.music.widget.PlaylistWidgetReceiver
 import com.metrolist.music.ui.utils.resize
+import com.metrolist.music.wear.DataLayerHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlin.coroutines.coroutineContext
@@ -292,6 +293,9 @@ class MusicService :
 
     @Inject
     lateinit var listenTogetherManager: com.metrolist.music.listentogether.ListenTogetherManager
+
+    @Inject
+    lateinit var dataLayerHelper: DataLayerHelper
 
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -601,6 +605,7 @@ class MusicService :
         super.onCreate()
         isRunning = true
         shutdownDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
+        dataLayerHelper.initializeMusicService(this)
 
         setListener(
             object : MediaSessionService.Listener {
@@ -4235,6 +4240,7 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        dataLayerHelper.playerConnection = null
 
         if (!::player.isInitialized) {
             try {

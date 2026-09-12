@@ -292,6 +292,7 @@ dependencies {
     "gmsImplementation"(libs.cast.framework)
 
     implementation(libs.room.runtime)
+    implementation(libs.play.services.wearable)
     implementation(libs.kuromoji.ipadic)
     implementation(libs.tinypinyin)
     ksp(libs.room.compiler)

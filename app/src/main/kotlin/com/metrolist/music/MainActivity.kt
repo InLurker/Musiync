@@ -213,6 +213,8 @@ import com.metrolist.music.utils.rememberPreference
 import com.metrolist.music.utils.reportException
 import com.metrolist.music.utils.setAppLocale
 import com.metrolist.music.viewmodels.HomeViewModel
+import com.metrolist.music.wear.DataLayerHelper
+import com.metrolist.music.wear.MessageLayerHelper
 import com.metrolist.music.widget.PlaylistWidgetReceiver
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -260,6 +262,12 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var listenTogetherManager: com.metrolist.music.listentogether.ListenTogetherManager
 
+    @Inject
+    lateinit var messageLayerHelper: MessageLayerHelper
+
+    @Inject
+    lateinit var dataLayerHelper: DataLayerHelper
+
     private lateinit var navController: NavHostController
     private var pendingIntent: Intent? = null
     private var latestVersionName by mutableStateOf(BuildConfig.BASE_VERSION_NAME)
@@ -283,6 +291,8 @@ class MainActivity : FragmentActivity() {
                     playerConnection = PlayerConnection(this@MainActivity, service, database, lifecycleScope)
                     playerConnectionSnapshot = playerConnection
                     listenTogetherManager.setPlayerConnection(playerConnection)
+                    messageLayerHelper.playerConnection = playerConnection
+                    dataLayerHelper.playerConnection = playerConnection
                 }
             }
 
@@ -290,6 +300,8 @@ class MainActivity : FragmentActivity() {
                 // Disconnect Listen Together manager
                 listenTogetherManager.setPlayerConnection(null)
                 playerConnection?.dispose()
+                messageLayerHelper.playerConnection = null
+                dataLayerHelper.playerConnection = null
                 // DO NOT null out playerConnection here - keep it for when service reconnects
                 // DO NOT update playerConnectionSnapshot - this is the key to preventing recomposition
             }
@@ -305,6 +317,8 @@ class MainActivity : FragmentActivity() {
             isServiceBound = false
             listenTogetherManager.setPlayerConnection(null)
             playerConnection?.dispose()
+            messageLayerHelper.playerConnection = null
+            dataLayerHelper.playerConnection = null
             // DO NOT null out playerConnection here - keep it for reconnection
             // DO NOT update playerConnectionSnapshot - this prevents UI recomposition
         }
