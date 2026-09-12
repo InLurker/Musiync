@@ -80,7 +80,7 @@ class MusicRepository @Inject constructor(
         if (indicesToFetch.isEmpty()) return
         
         mutex.withLock {
-            pendingIndices.value.addAll(indicesToFetch)
+            pendingIndices.value = (pendingIndices.value + indicesToFetch).toMutableSet()
         }
 
         Log.d("MusicRepository", "Requesting queue indices: ${indicesToFetch.joinToString()}")
@@ -104,13 +104,13 @@ class MusicRepository @Inject constructor(
     }
 
     private fun resetQueue(state: MusicState) {
-        queue.value.clear()
-        artworks.value.clear()
+        queue.value = sortedMapOf()
+        artworks.value = mutableMapOf()
         displayedIndices.clear()
         
         repositoryScope.launch {
             mutex.withLock {
-                pendingIndices.value.clear()
+                pendingIndices.value = mutableSetOf()
             }
             val range = calculateInitialPageRange(state.currentIndex, state.queueSize)
             requestQueueRange(range.first, range.second, RequestPriority.HIGH)
@@ -163,7 +163,7 @@ class MusicRepository @Inject constructor(
         } finally {
             // Clear pending indices in case of timeout
             mutex.withLock {
-                pendingIndices.value.clear()
+                pendingIndices.value = mutableSetOf()
             }
         }
     }
@@ -182,26 +182,31 @@ class MusicRepository @Inject constructor(
         mutex.withLock {
             if (hash != musicState.value?.queueHash) {
                 Log.d("MusicRepository", "Received new queue with hash: $hash")
-                queue.value.clear()
-                artworks.value.clear()
+                queue.value = sortedMapOf()
+                artworks.value = mutableMapOf()
                 displayedIndices.clear()
             }
 
-            queue.update {
-                it.apply { trackDelta?.let { delta -> putAll(delta) } }
+            queue.update { currentQueue ->
+                sortedMapOf<Int, TrackInfo>().apply {
+                    putAll(currentQueue)
+                    trackDelta?.let { putAll(it) }
+                }
             }
 
             // Update displayed indices based on fetched data
             if (trackDelta != null) {
                 updateDisplayedIndices(trackDelta.keys)
                 // Remove these indices from pending
-                pendingIndices.value.removeAll(trackDelta.keys)
+                pendingIndices.value = (pendingIndices.value - trackDelta.keys).toMutableSet()
             }
 
             // Fetch artwork
             val newArtworks = artworkDelta()
             if (newArtworks != null) {
-                artworks.update { it.apply { putAll(newArtworks) } }
+                artworks.update { currentArtworks ->
+                    currentArtworks.toMutableMap().apply { putAll(newArtworks) }
+                }
             }
 
             repositoryScope.launch {
@@ -217,16 +222,12 @@ class MusicRepository @Inject constructor(
         }
         // Find where to insert the new indices
         val newIndices = fetchedIndices.filter { it !in displayedIndices }.sorted()
+        if (newIndices.isEmpty()) return
 
-        if (newIndices.first() < displayedIndices.first()) {
-            displayedIndices.addAll(0, newIndices)
-        } else if (newIndices.last() > displayedIndices.last()) {
-            displayedIndices.addAll(newIndices)
-        } else {
-            displayedIndices.apply {
-                clear()
-                addAll(fetchedIndices.sorted())
-            }
+        displayedIndices.apply {
+            val mergedIndices = (this + newIndices).distinct().sorted()
+            clear()
+            addAll(mergedIndices)
         }
         Log.d("MusicRepository", "Updated displayedIndices: ${displayedIndices.joinToString()}")
     }

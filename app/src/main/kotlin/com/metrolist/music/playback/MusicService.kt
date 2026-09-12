@@ -220,6 +220,7 @@ import com.metrolist.music.widget.MusicWidgetReceiver
 import com.metrolist.music.widget.PlaylistWidgetReceiver
 import com.metrolist.music.ui.utils.resize
 import com.metrolist.music.wear.DataLayerHelper
+import com.metrolist.music.wear.MessageLayerHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlin.coroutines.coroutineContext
@@ -297,6 +298,9 @@ class MusicService :
     @Inject
     lateinit var dataLayerHelper: DataLayerHelper
 
+    @Inject
+    lateinit var messageLayerHelper: MessageLayerHelper
+
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private var lastAudioFocusState = AudioManager.AUDIOFOCUS_NONE
@@ -328,6 +332,7 @@ class MusicService :
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val binder = MusicBinder()
+    private var serviceWearPlayerConnection: PlayerConnection? = null
 
     inner class MusicBinder : Binder() {
         val service: MusicService
@@ -409,6 +414,10 @@ class MusicService :
 
     private val playerInitialized = MutableStateFlow(false)
     val isPlayerReady: kotlinx.coroutines.flow.StateFlow<Boolean> = playerInitialized.asStateFlow()
+
+    // Shared with PlayerConnection so WearOS sees one stable queue identity whether the
+    // Activity is bound or the playback service is running in the background.
+    val wearQueueHash = MutableStateFlow(System.currentTimeMillis())
 
     // Single batch-read of all DataStore preferences needed during onCreate().
     // Populated once at the very top of onCreate() to replace 15+ individual
@@ -605,7 +614,7 @@ class MusicService :
         super.onCreate()
         isRunning = true
         shutdownDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
-        dataLayerHelper.initializeMusicService(this)
+        messageLayerHelper.musicService = this
 
         setListener(
             object : MediaSessionService.Listener {
@@ -690,6 +699,8 @@ class MusicService :
         player.addListener(sleepTimer!!)
 
         playerInitialized.value = true
+        serviceWearPlayerConnection = PlayerConnection(this, binder, database, scope)
+        dataLayerHelper.servicePlayerConnection = serviceWearPlayerConnection
         Timber.tag(TAG).d("Player successfully initialized")
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -1767,6 +1778,7 @@ class MusicService :
         }
 
         currentQueue = queue
+        wearQueueHash.value = System.currentTimeMillis()
         queueTitle = null
         val persistShuffleAcrossQueues = dataStore.get(PersistentShuffleAcrossQueuesKey, false)
         if (!persistShuffleAcrossQueues && !restoringQueue) {
@@ -2021,6 +2033,7 @@ class MusicService :
     }
 
     fun playNext(items: List<MediaItem>) {
+        wearQueueHash.value = System.currentTimeMillis()
         // If queue is empty or player is idle, play immediately instead
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
             player.setMediaItems(items)
@@ -2114,6 +2127,7 @@ class MusicService :
     }
 
     fun addToQueue(items: List<MediaItem>) {
+        wearQueueHash.value = System.currentTimeMillis()
         if (dataStore.get(PreventDuplicateTracksInQueueKey, false)) {
             val itemIds = items.map { it.mediaId }.toSet()
             val indicesToRemove = mutableListOf<Int>()
@@ -4240,6 +4254,10 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        messageLayerHelper.musicService = null
+        serviceWearPlayerConnection?.dispose()
+        serviceWearPlayerConnection = null
+        dataLayerHelper.servicePlayerConnection = null
         dataLayerHelper.playerConnection = null
 
         if (!::player.isInitialized) {

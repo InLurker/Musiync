@@ -78,7 +78,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun appendBitmapToArtworkMap(url: String, bitmap: Bitmap) {
-        artworkBitmaps.value[url] = bitmap
+        artworkBitmaps.value = artworkBitmaps.value.toMutableMap().apply {
+            put(url, bitmap)
+        }
     }
 
     /**

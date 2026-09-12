@@ -1,22 +1,19 @@
 package com.metrolist.music.wear
 
 import android.content.Context
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.metrolist.music.extensions.togglePlayPause
+import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.wear.enumerated.DataLayerPathEnum
 import com.metrolist.music.wear.enumerated.MessageLayerPathEnum
 import com.metrolist.music.wear.enumerated.WearCommandEnum
 import com.metrolist.music.wear.model.toDataMap
 import timber.log.Timber
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,9 +21,13 @@ import javax.inject.Singleton
 class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelper: DataLayerHelper) :
     MessageClient.OnMessageReceivedListener {
 
-    var playerConnection by mutableStateOf<PlayerConnection?>(null)
+    @Volatile
+    var playerConnection: PlayerConnection? = null
+
+    @Volatile
+    var musicService: MusicService? = null
+
     private val messageClient: MessageClient = Wearable.getMessageClient(context)
-    private val commandListener = AtomicReference<(WearCommandEnum) -> Unit>()
 
     init {
         messageClient.addListener(this)
@@ -38,7 +39,11 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
         try {
             when (messageEvent.path) {
                 MessageLayerPathEnum.REQUEST_QUEUE.path -> {
-                    val requestedIndices = String(messageEvent.data).split(",").map { it.toInt() }
+                    val requestedIndices = String(messageEvent.data, Charsets.UTF_8)
+                        .split(",")
+                        .mapNotNull { it.toIntOrNull() }
+                        .distinct()
+                    if (requestedIndices.isEmpty()) return
                     Timber.Forest.tag("MessageLayerHelper").d("Received request for queue indices: $requestedIndices")
                     dataLayerHelper.handleQueueRangeRequest(requestedIndices) { queue ->
                         if (queue == null || queue.trackList.isEmpty()) {
@@ -95,9 +100,18 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
     private fun handleMusicCommand(command: WearCommandEnum) {
         Timber.Forest.tag("MessageLayerHelper").d("Executing $command command")
         when (command) {
-            WearCommandEnum.NEXT -> playerConnection?.seekToNext()
-            WearCommandEnum.PREVIOUS -> playerConnection?.seekToPrevious()
-            WearCommandEnum.PLAY_PAUSE -> playerConnection?.player?.togglePlayPause()
+            WearCommandEnum.NEXT -> withPlayback(
+                connectionAction = { it.seekToNext() },
+                playerAction = { it.seekToNext() },
+            )
+            WearCommandEnum.PREVIOUS -> withPlayback(
+                connectionAction = { it.seekToPrevious() },
+                playerAction = { it.seekToPrevious() },
+            )
+            WearCommandEnum.PLAY_PAUSE -> withPlayback(
+                connectionAction = { it.togglePlayPause() },
+                playerAction = { it.togglePlayPause() },
+            )
             else -> {
                 Timber.Forest.tag("MessageLayerHelper").d("Unknown command: $command")
             }
@@ -108,12 +122,41 @@ class MessageLayerHelper @Inject constructor(context: Context, val dataLayerHelp
         Timber.Forest.tag("MessageLayerHelper").d("Executing $command command with index: $index")
         when (command) {
             WearCommandEnum.SEEK_TO -> {
-                playerConnection?.player?.seekToDefaultPosition(index)
-                playerConnection?.player?.playWhenReady = true
+                withPlayback(
+                    connectionAction = {
+                        it.player.seekToDefaultPosition(index)
+                        it.player.playWhenReady = true
+                    },
+                    playerAction = {
+                        it.seekToDefaultPosition(index)
+                        it.playWhenReady = true
+                    },
+                )
             }
             else -> {
                 Timber.Forest.tag("MessageLayerHelper").d("Unknown command: $command")
             }
         }
+    }
+
+    private fun withPlayback(
+        connectionAction: (PlayerConnection) -> Unit,
+        playerAction: (androidx.media3.exoplayer.ExoPlayer) -> Unit,
+    ) {
+        playerConnection?.let {
+            runCatching { connectionAction(it) }
+                .onFailure { Timber.Forest.tag("MessageLayerHelper").e(it, "Failed to execute Wear command") }
+            return
+        }
+
+        val service = musicService ?: return
+        if (!service.isPlayerReady.value) return
+
+        runCatching { service.player }
+            .getOrNull()
+            ?.let { player ->
+                runCatching { playerAction(player) }
+                    .onFailure { Timber.Forest.tag("MessageLayerHelper").e(it, "Failed to execute Wear command") }
+            }
     }
 }

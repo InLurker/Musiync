@@ -12,6 +12,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -50,6 +51,11 @@ fun QueueScreen(viewModel: PlayerViewModel) {
     val lazyListState = rememberScalingLazyListState()
 
     val isScrollingLocked = remember { mutableStateOf(true) }
+    val currentMusicQueue by rememberUpdatedState(musicQueue)
+    val currentMusicState by rememberUpdatedState(musicState)
+    val currentIsFetching by rememberUpdatedState(isFetching)
+    val currentIsLoadingPrevious by rememberUpdatedState(isLoadingPrevious)
+    val currentIsLoadingNext by rememberUpdatedState(isLoadingNext)
 
     val passiveColor = accentColor?.let {
         lerp(Color.Black, it, 0.3f).copy(alpha = 0.6f)
@@ -64,12 +70,15 @@ fun QueueScreen(viewModel: PlayerViewModel) {
             .collect { isScrolling ->
                 isScrollingLocked.value = isScrolling
             }
+    }
+
+    LaunchedEffect(lazyListState) {
         snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
             .debounce(300.milliseconds)
             .collect { visibleItems ->
-                if (musicState == null || musicQueue.isEmpty() || 
+                if (currentMusicState == null || currentMusicQueue.isEmpty() ||
                     visibleItems.isEmpty() || displayedIndices.isEmpty() ||
-                    isFetching || isLoadingPrevious || isLoadingNext || isScrollingLocked.value) {
+                    currentIsFetching || currentIsLoadingPrevious || currentIsLoadingNext || isScrollingLocked.value) {
                     return@collect
                 }
                 
@@ -115,7 +124,9 @@ fun QueueScreen(viewModel: PlayerViewModel) {
             .debounce(200.milliseconds)  // Ensure list is stable before scrolling
             .collect { position ->
                 isScrollingLocked.value = true
-                lazyListState.animateScrollToItem(position)
+                if (position >= 0) {
+                    lazyListState.animateScrollToItem(position)
+                }
                 isScrollingLocked.value = true
             }
     }

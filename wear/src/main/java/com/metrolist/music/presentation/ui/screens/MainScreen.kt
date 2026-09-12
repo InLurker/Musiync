@@ -51,7 +51,9 @@ fun MainScreen(
                 onSuccess = { result ->
                     result.result.image.toBitmap().let { bitmap ->
                         viewModel.updateAccentColor(bitmap)
-                        viewModel.appendBitmapToArtworkMap(currentTrack?.artworkUrl!!, bitmap)
+                        currentTrack?.artworkUrl?.let { artworkUrl ->
+                            viewModel.appendBitmapToArtworkMap(artworkUrl, bitmap)
+                        }
                     }
                 },
                 contentDescription = null,
